@@ -1,0 +1,31 @@
+### Step 1: Boot from an SD Card and Open `raspi-config`
+1. Insert an SD card with Raspberry Pi OS and boot the Raspberry Pi.
+2. Open a terminal and run:
+   ```bash
+   sudo raspi-config
+   ```
+
+### Step 2: Update the Bootloader Settings
+1. Navigate to `Advanced Options` (on older versions, this might be under `Boot Options`).
+2. Select `Boot Order`.
+3. Choose `USB Boot` or `USB and SD Boot` depending on your preference (for Raspberry Pi 4, it’s usually labeled as "USB Boot").
+4. Exit `raspi-config` and allow the system to reboot if prompted.
+
+### Step 3: Prepare the USB Drive
+1. Flash Raspberry Pi OS to the USB drive using tools like [Raspberry Pi Imager](https://www.raspberrypi.com/software/) or [Balena Etcher](https://www.balena.io/etcher/).
+2. Once flashed, insert the USB drive into one of the Raspberry Pi's USB ports.
+
+### Step 4: Boot from the USB Drive
+1. Power off the Raspberry Pi.
+2. Remove the SD card.
+3. Turn the Raspberry Pi back on. It should now boot from the USB drive.
+
+### Note:
+- For **Raspberry Pi 4**, the firmware generally supports USB boot natively, so enabling it via `raspi-config` should work without needing further steps.
+- For **Raspberry Pi 3B+**, it also supports USB boot without much configuration.
+- For **Raspberry Pi 3 (non-B+ models)**, a one-time tweak to the OTP (One-Time Programmable memory) is required to enable USB boot. You can enable it by running:
+   ```bash
+   echo program_usb_boot_mode=1 | sudo tee -a /boot/config.txt
+   ```
+
+Once this is done, your Raspberry Pi should be able to boot from USB devices.

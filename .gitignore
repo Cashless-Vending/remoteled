@@ -1,0 +1,27 @@
+# General
+.DS_Store
+*.zip
+*.apk
+*.log
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+pi/python/bt/
+
+# Android (root-level safety; Android module has its own .gitignore too)
+android/RemoteLedBLE/.gradle/
+android/RemoteLedBLE/.idea/
+android/RemoteLedBLE/local.properties
+android/RemoteLedBLE/build/
+android/RemoteLedBLE/app/build/
+
+# OS thumbnails
+Thumbs.db

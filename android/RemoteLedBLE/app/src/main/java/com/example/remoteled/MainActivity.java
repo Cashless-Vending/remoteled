@@ -1,0 +1,396 @@
+package com.example.remoteled;
+
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothGatt;
+import android.bluetooth.BluetoothGattCharacteristic;
+import android.bluetooth.BluetoothGattService;
+import android.bluetooth.BluetoothGattCallback;
+import android.bluetooth.BluetoothManager;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Bundle;
+import java.util.Arrays;
+import android.Manifest;
+import androidx.annotation.NonNull;
+
+
+
+
+import androidx.appcompat.app.AppCompatActivity;
+
+import android.util.Log;
+import android.view.View;
+
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import com.example.remoteled.databinding.ActivityMainBinding;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+
+import android.widget.Button;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.TextView;
+import android.widget.Toast;
+import android.widget.ToggleButton;
+
+import java.nio.charset.StandardCharsets;
+import java.util.UUID;
+
+public class MainActivity extends AppCompatActivity {
+
+    private ActivityMainBinding binding;
+    private static final String TAG = "RemoteLED";
+    private static final int REQUEST_ENABLE_BT = 1;
+    private static final int PERMISSION_REQUEST_CODE = 100;
+
+    private BluetoothAdapter bluetoothAdapter;
+    private BluetoothGatt bluetoothGatt;
+    private BluetoothGattCharacteristic characteristic;
+
+    private TextView connectionStatus; // TextView to show connection status
+    FrameLayout toggleBox;
+    ImageView toggleImage;
+    private boolean isON = false;
+    String bleKey;
+    FloatingActionButton disconnectButton;
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+
+        binding = ActivityMainBinding.inflate(getLayoutInflater());
+        setContentView(binding.getRoot());
+
+        connectionStatus = findViewById(R.id.connectionStatus);
+        toggleBox = findViewById(R.id.toggleBox);
+        toggleImage = findViewById(R.id.toggleImage);
+        disconnectButton = findViewById(R.id.disconnect);
+
+        checkAndRequestPermissions();
+
+        toggleBox.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (isON) {
+                    // Change to night mode
+                    toggleBox.setBackgroundColor(ContextCompat.getColor(MainActivity.this, R.color.nightBackground));
+                    toggleImage.setImageResource(R.drawable.moon_image);
+                    switchOff();
+                } else {
+                    // Change to day mode
+                    toggleBox.setBackgroundColor(ContextCompat.getColor(MainActivity.this, R.color.darkBackground));
+                    toggleImage.setImageResource(R.drawable.sun_image);
+                    switchOn();
+                }
+                isON = !isON; // Toggle the mode
+            }
+        });
+        disconnectButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                    // TODO: Consider calling
+                    //    ActivityCompat#requestPermissions
+                    // here to request the missing permissions, and then overriding
+                    //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                    //                                          int[] grantResults)
+                    // to handle the case where the user grants the permission. See the documentation
+                    // for ActivityCompat#requestPermissions for more details.
+                    return;
+                }
+                bluetoothGatt.disconnect();
+            }
+        });
+    }
+
+    private void checkAndRequestPermissions() {
+        // List of permissions required for Bluetooth operations
+        String[] permissions;
+
+        // Different permissions are required based on Android version
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // Android 12+ requires BLUETOOTH_SCAN and BLUETOOTH_CONNECT
+            permissions = new String[]{
+                    Manifest.permission.BLUETOOTH_SCAN,
+                    Manifest.permission.BLUETOOTH_CONNECT,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            };
+        } else {
+            // Older versions only need classic Bluetooth and location permissions
+            permissions = new String[]{
+                    Manifest.permission.BLUETOOTH,
+                    Manifest.permission.BLUETOOTH_ADMIN,
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+            };
+        }
+
+        // Check if permissions are already granted
+        if (!hasPermissions(permissions)) {
+            // Request the missing permissions
+            ActivityCompat.requestPermissions(this, permissions, PERMISSION_REQUEST_CODE);
+        } else {
+            // Permissions are already granted, proceed with your Bluetooth operations
+            Log.d(TAG, "Permissions already granted.");
+            initializeBluetooth();
+        }
+    }
+
+    private void initializeBluetooth() {
+        BluetoothManager bluetoothManager = (BluetoothManager) getSystemService(Context.BLUETOOTH_SERVICE);
+        bluetoothAdapter = bluetoothManager.getAdapter();
+        if (!bluetoothAdapter.isEnabled()) {
+            // Bluetooth is not enabled, prompt the user to turn it on
+            Log.d(TAG, "Bluetooth is off, requesting to turn it on...");
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                // TODO: Consider calling
+                //    ActivityCompat#requestPermissions
+                // here to request the missing permissions, and then overriding
+                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                //                                          int[] grantResults)
+                // to handle the case where the user grants the permission. See the documentation
+                // for ActivityCompat#requestPermissions for more details.
+                return;
+            }
+            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+        }else{
+            initializeGattConnection();
+        }
+    }
+
+    private boolean hasPermissions(String[] permissions) {
+        for (String permission : permissions) {
+            if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQUEST_CODE) {
+            boolean allGranted = true;
+
+            // Check if all permissions are granted
+            for (int result : grantResults) {
+                if (result != PackageManager.PERMISSION_GRANTED) {
+                    allGranted = false;
+                    break;
+                }
+            }
+
+            if (allGranted) {
+                // All permissions are granted, initialize Bluetooth operations
+                Log.d(TAG, "All permissions granted.");
+                initializeBluetooth();
+            } else {
+                // Some permissions are denied
+                Log.e(TAG, "Some permissions are denied. Bluetooth functionality may not work.");
+            }
+        }
+    }
+
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_ENABLE_BT) {
+            if (resultCode == RESULT_OK) {
+                // Bluetooth is now enabled, initialize GATT connection
+                Log.d(TAG, "Bluetooth enabled successfully, initializing GATT connection...");
+                initializeGattConnection();
+            } else {
+                // User denied the request to enable Bluetooth
+                Log.e(TAG, "Bluetooth enabling failed or user denied the request.");
+            }
+        }
+    }
+    private void initializeGattConnection() {
+        // Check if the app was opened via a deep link
+        Intent intent = getIntent();
+        if (intent != null && intent.getAction() != null && intent.getAction().equals(Intent.ACTION_VIEW)) {
+            Uri data = intent.getData();
+            if (data != null) {
+                String macAddress = data.getPathSegments().get(0);
+                String serviceUUID = "0000"+data.getPathSegments().get(1)+"-0000-1000-8000-00805f9b34fb";
+                String characteristicUUID = "0000"+data.getPathSegments().get(2)+"-0000-1000-8000-00805f9b34fb";
+                bleKey = data.getPathSegments().get(3);
+
+                // Connect to the BLE device
+                connectToDevice(macAddress, UUID.fromString(serviceUUID), UUID.fromString(characteristicUUID));
+            }
+        }
+    }
+
+    private void connectToDevice(String macAddress, UUID serviceUUID, UUID characteristicUUID) {
+        BluetoothDevice device = bluetoothAdapter.getRemoteDevice(macAddress);
+        if (device == null) {
+            Log.e(TAG, "Device not found. Unable to connect.");
+            Toast.makeText(this,"Device Not Found!",Toast.LENGTH_SHORT).show();
+            updateConnectionStatus("Device not found");
+            return;
+        }
+
+        updateConnectionStatus("Connecting to device...");
+
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            // TODO: Consider calling
+            //    ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+            //                                          int[] grantResults)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+            return;
+        }
+        bluetoothGatt = device.connectGatt(this, false, new BluetoothGattCallback() {
+            @Override
+            public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+                Log.d(TAG,"BLE State Changed"+newState);
+                if (newState == BluetoothGatt.STATE_CONNECTED) {
+                    Log.i(TAG, "Connected to GATT server.");
+                    updateConnectionStatus("Connected to device");
+                    if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                        // TODO: Consider calling
+                        //    ActivityCompat#requestPermissions
+                        // here to request the missing permissions, and then overriding
+                        //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                        //                                          int[] grantResults)
+                        // to handle the case where the user grants the permission. See the documentation
+                        // for ActivityCompat#requestPermissions for more details.
+                        return;
+                    }
+                    bluetoothGatt.discoverServices();
+                } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
+                    Log.i(TAG, "Disconnected from GATT server.");
+                    updateConnectionStatus("Disconnected from device");
+                    bluetoothGatt.close();
+                    MainActivity.this.finishAndRemoveTask();
+                }
+            }
+
+            @Override
+            public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    BluetoothGattService service = bluetoothGatt.getService(serviceUUID);
+                    if (service != null) {
+                        characteristic = service.getCharacteristic(characteristicUUID);
+                        Log.i(TAG, "Characteristic found.");
+                        updateConnectionStatus("Characteristic found");
+                        enableControlButtons(true); // Enable the ON/OFF buttons once connected
+                        if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                            // TODO: Consider calling
+                            //    ActivityCompat#requestPermissions
+                            // here to request the missing permissions, and then overriding
+                            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                            //                                          int[] grantResults)
+                            // to handle the case where the user grants the permission. See the documentation
+                            // for ActivityCompat#requestPermissions for more details.
+                            return;
+                        }
+                        bluetoothGatt.readCharacteristic(characteristic);
+                    } else {
+                        updateConnectionStatus("Service not found");
+                    }
+                }
+            }
+
+            @Override
+            public void onCharacteristicRead(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                Log.e(TAG,"CHAR READ");
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    byte[] data = characteristic.getValue();
+                    String led_state = new String(data, StandardCharsets.UTF_8);
+                    Log.d(TAG,led_state);
+                    if(led_state.equals("on"))
+                    {
+                        isON = true;
+                        toggleBox.setBackgroundColor(ContextCompat.getColor(MainActivity.this, R.color.darkBackground));
+                        toggleImage.setImageResource(R.drawable.sun_image);
+                    }else if(led_state.equals("off")){
+                        isON=false;
+                        toggleBox.setBackgroundColor(ContextCompat.getColor(MainActivity.this, R.color.nightBackground));
+                        toggleImage.setImageResource(R.drawable.moon_image);
+                    }
+                    connect_ack();
+                    Log.i(TAG, "Characteristic read successfully: " + Arrays.toString(data));
+                }
+            }
+        });
+    }
+
+    private void sendCommand(String command) {
+        if (characteristic != null) {
+            String jsonPayload = "{\"command\": \"" + command + "\",\"bleKey\":\""+bleKey+"\"}";
+            byte[] data = jsonPayload.getBytes(StandardCharsets.UTF_8);
+            characteristic.setValue(data);
+            if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                // TODO: Consider calling
+                //    ActivityCompat#requestPermissions
+                // here to request the missing permissions, and then overriding
+                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                //                                          int[] grantResults)
+                // to handle the case where the user grants the permission. See the documentation
+                // for ActivityCompat#requestPermissions for more details.
+                return;
+            }
+            boolean success = bluetoothGatt.writeCharacteristic(characteristic);
+
+            if (success) {
+                Log.i(TAG, "Command sent: " + command);
+            } else {
+                Log.e(TAG, "Failed to send command.");
+            }
+        } else {
+            Log.e(TAG, "Characteristic is not initialized.");
+        }
+    }
+
+    public void switchOn() {
+        sendCommand("ON");
+    }
+
+    public void switchOff() {
+        sendCommand("OFF");
+    }
+
+    public void connect_ack() { sendCommand("CONNECT"); }
+
+    private void updateConnectionStatus(String status) {
+        runOnUiThread(() -> connectionStatus.setText("Status: " + status));
+    }
+
+    private void enableControlButtons(boolean enable) {
+        runOnUiThread(() -> {
+            toggleBox.setVisibility(View.VISIBLE);
+        });
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (bluetoothGatt != null) {
+            if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+                // TODO: Consider calling
+                //    ActivityCompat#requestPermissions
+                // here to request the missing permissions, and then overriding
+                //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
+                //                                          int[] grantResults)
+                // to handle the case where the user grants the permission. See the documentation
+                // for ActivityCompat#requestPermissions for more details.
+                return;
+            }
+            bluetoothGatt.close();
+            bluetoothGatt = null;
+        }
+    }
+}

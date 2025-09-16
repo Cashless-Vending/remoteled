@@ -1,0 +1,18 @@
+[Unit]
+Description=Start Remote LED Node Script on Boot
+After=network.target
+Wants=network-online.target
+Conflicts=remoteled-python.service
+
+
+[Service]
+ExecStart=/usr/local/remoteled/node/start.sh
+WorkingDirectory=/usr/local/remoteled/node
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+RestartSec=5
+User=USERNAME_PLACEHOLDER
+
+[Install]
+WantedBy=multi-user.target
