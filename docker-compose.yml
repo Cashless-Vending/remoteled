@@ -1,0 +1,33 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    network_mode: host
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
+    restart: unless-stopped
+
+  iot-peripheral:
+    build:
+      context: .
+      dockerfile: Dockerfile.iot
+      platforms:
+        - linux/arm64
+    network_mode: host
+    privileged: true
+    devices:
+      - /dev/gpiomem:/dev/gpiomem
+      - /dev/mem:/dev/mem
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
+
+  web-kiosk:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+      platforms:
+        - linux/arm64
+    network_mode: host
+    depends_on:
+      - mosquitto
+    restart: unless-stopped
