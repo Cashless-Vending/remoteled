@@ -2,9 +2,11 @@
 
 # LED control script
 # GPIO17 = Green LED (1017)
+# GPIO19 = Yellow LED (1019)
 # GPIO27 = Red LED (1027)
 
 GREEN_PIN=17
+YELLOW_PIN=19
 RED_PIN=27
 
 case "$1" in
@@ -17,6 +19,15 @@ case "$1" in
             echo "Green LED ON"
         fi
         ;;
+    yellow)
+	if [ "$2" = "0" ]; then
+	    gpioset gpiochip0 $YELLOW_PIN=0
+            echo "Yellow LED OFF"
+        else
+            gpioset gpiochip0 $YELLOW_PIN=1	
+            echo "Yellow LED ON"
+	fi
+	;;
     red)
         if [ "$2" = "0" ]; then
             gpioset gpiochip0 $RED_PIN=0
@@ -28,17 +39,19 @@ case "$1" in
         ;;
     all)
         if [ "$2" = "0" ]; then
-            gpioset gpiochip0 $GREEN_PIN=0 $RED_PIN=0
+            gpioset gpiochip0 $GREEN_PIN=0 $YELLOW_PIN=0 $RED_PIN=0
             echo "All LEDs OFF"
         else
-            gpioset gpiochip0 $GREEN_PIN=1 $RED_PIN=1
+            gpioset gpiochip0 $GREEN_PIN=1 $YELLOW_PIN=1 $RED_PIN=1 
             echo "All LEDs ON"
         fi
         ;;
     *)
-        echo "Usage: led {green|red|all} {0|1}"
+        echo "Usage: led {green|yellow|red|all} {0|1}"
         echo "  led green 1  - Turn green LED ON"
         echo "  led green 0  - Turn green LED OFF"
+	echo "  led yellow 1 - Turn yellow LED ON"
+	echo "  led yellow 0 - Turn yellow LED OFF"
         echo "  led red 1    - Turn red LED ON"
         echo "  led red 0    - Turn red LED OFF"
         echo "  led all 1    - Turn all LEDs ON"
