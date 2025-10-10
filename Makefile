@@ -15,7 +15,7 @@ help:
 
 build:
 	@echo "Building containers for $(PLATFORM)..."
-	docker compose build --platform $(PLATFORM) --no-cache
+	docker compose build
 
 app-up:
 	@echo "Starting RemoteLED services..."

@@ -10,8 +10,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.iot
-      platforms:
-        - linux/arm64
+    platform: linux/arm64
     network_mode: host
     privileged: true
     devices:
@@ -25,8 +24,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.web
-      platforms:
-        - linux/arm64
+    platform: linux/arm64
     network_mode: host
     depends_on:
       - mosquitto
