@@ -1,0 +1,17 @@
+FROM python:3.11-slim-bookworm
+PLATFORM linux/arm64
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
+WORKDIR /app
+COPY pyproject.toml .
+RUN uv pip install --system -r pyproject.toml
+
+COPY pi/web/ ./static/
+
+RUN echo 'from fastapi import FastAPI\n\
+from fastapi.staticfiles import StaticFiles\n\
+app = FastAPI()\n\
+app.mount("/", StaticFiles(directory="static", html=True), name="static")\n' > main.py
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]
