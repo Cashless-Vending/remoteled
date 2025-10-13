@@ -1,0 +1,26 @@
+[project]
+name = "remoteled"
+version = "1.0.0"
+description = "Control a physical LED over BLE using Raspberry Pi and Android"
+requires-python = ">=3.11"
+dependencies = [
+    "paho-mqtt>=2.1.0",
+]
+
+[project.optional-dependencies]
+iot = [
+    "RPi.GPIO>=0.7.1",
+    "bluezero>=0.8.0",
+    "dbus-python>=1.3.2",
+]
+web = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pi/python"]
