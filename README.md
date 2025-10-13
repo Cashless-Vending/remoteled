@@ -4,6 +4,8 @@ Control a physical LED over Bluetooth Low Energy using a Raspberry Pi and an And
 
 The project includes everything needed to provision a Raspberry Pi (web kiosk, MQTT broker, BLE peripheral in Node or Python, systemd services) and the Android client app (QR scanner + BLE GATT client).
 
+> Important: Android emulators do not support real Bluetooth LE. Use a physical Android device for end‑to‑end testing.
+
 ## Overview
 - Architecture: Pi runs a BLE peripheral and publishes a deep link to MQTT; a local web page renders the QR. Android scans the QR or opens the deep link directly, connects via BLE, and writes commands to toggle a GPIO.
 - Deep link format: `remoteled://connect/<MAC>/<svc16>/<char16>/<bleKey>`.
@@ -23,6 +25,79 @@ The project includes everything needed to provision a Raspberry Pi (web kiosk, M
 - Raspberry Pi with Bluetooth (tested on Raspberry Pi OS Bookworm, Wayfire/LXDE)
 - Internet on first setup (to install packages)
 - Android device (current app sets `minSdk=34`, i.e., Android 14+)
+
+## End‑to‑End Quick Start
+
+### A. Raspberry Pi setup
+1. Copy the `pi/` directory to the Pi and run the installer:
+
+   ```bash
+   bash pi/install.sh
+   ```
+
+   What the installer does:
+   - Installs Node 18, Python BLE dependencies, nginx, and mosquitto
+   - Copies code to `/usr/local/remoteled/`
+   - Sets up the kiosk to show `http://localhost` in Chromium on boot
+   - Creates two services (mutually exclusive): `remoteled-node.service` and `remoteled-python.service`
+   - Configures mosquitto on `1883` (MQTT) and `8083` (WebSocket)
+
+2. Choose ONE BLE implementation and enable it (Python recommended):
+
+   ```bash
+   # Python implementation (uses GPIO BCM 17)
+   sudo systemctl disable --now remoteled-node.service 2>/dev/null || true
+   sudo systemctl enable --now remoteled-python.service
+
+   # or Node implementation (adjust GPIO pin in code if needed)
+   # sudo systemctl disable --now remoteled-python.service
+   # sudo systemctl enable --now remoteled-node.service
+   ```
+
+3. Ensure web and broker are running:
+
+   ```bash
+   sudo systemctl enable --now nginx mosquitto
+   sudo systemctl status nginx mosquitto | cat
+   ```
+
+4. Reboot, then verify the kiosk shows a QR:
+
+   ```bash
+   sudo reboot
+   # After reboot, on the Pi screen you should see "Scan QR" and a code
+   ```
+
+5. View logs for the BLE service until you see a deep link being generated:
+
+   ```bash
+   # For Python
+   journalctl -u remoteled-python.service -f
+   # For Node
+   # journalctl -u remoteled-node.service -f
+   ```
+
+   You should see a line like:
+
+   ```
+   Generated Deep Link: remoteled://connect/AA:BB:CC:DD:EE:FF/abcd/ef01/1234
+   ```
+
+Hardware note: The LED should be connected to ground and GPIO BCM 17 (Python) or the pin configured in `pi/node/main.js` (Node). Add a series resistor.
+
+### B. Android app setup
+1. Use a physical device (Android 14+ given current config). Connect via USB with USB debugging enabled.
+2. Open `android/RemoteLedBLE` in Android Studio.
+3. Select your phone in the device dropdown and click Run. Grant Camera, Location, and Bluetooth permissions.
+4. The app launches the QR scanner. Scan the kiosk QR.
+
+Deep link alternative (without scanning):
+
+```bash
+adb shell am start -a android.intent.action.VIEW -d "remoteled://connect/AA:BB:CC:DD:EE:FF/abcd/ef01/1234"
+```
+
+If your phone runs an older Android version, lower `minSdk` in `android/RemoteLedBLE/app/build.gradle.kts` and rebuild.
 
 ## Quick Start (Raspberry Pi)
 1) Prepare the Pi
@@ -53,6 +128,8 @@ The project includes everything needed to provision a Raspberry Pi (web kiosk, M
 - Or install the included debug APK: `remoteled.apk` (for local testing only; rebuild your own for distribution).
 - Launch the app and scan the QR on the Pi. The app also handles deep links of the form `remoteled://connect/...` if opened directly.
 
+Emulator note: The Android emulator does not support Bluetooth LE and the app declares BLE as a required feature in the manifest. Installation and BLE will fail on the emulator—use a real device.
+
 ## Using It
 - Commands written to the BLE characteristic are JSON:
   - `{"command":"CONNECT","bleKey":"xxxx"}`: verifies the session
@@ -76,6 +153,11 @@ The project includes everything needed to provision a Raspberry Pi (web kiosk, M
   - Check mosquitto is running: `systemctl status mosquitto`
   - Check nginx: `systemctl status nginx`
   - Verify WebSockets listener `8083` is configured in `/etc/mosquitto/mosquitto.conf`
+- Bluetooth won’t power on:
+  - `rfkill list`, then `sudo rfkill unblock bluetooth && sudo hciconfig hci0 up`
+- Can’t see a deep link in logs:
+  - Confirm exactly one BLE service is active (Python OR Node)
+  - Tail logs with `journalctl -u remoteled-python.service -f` (or Node)
 - Android cannot connect:
   - Ensure Bluetooth and Location permissions are granted
   - App requires Android 14+ as configured; consider lowering `minSdk` in `build.gradle.kts`
@@ -83,6 +165,11 @@ The project includes everything needed to provision a Raspberry Pi (web kiosk, M
 - GPIO not toggling:
   - Confirm the pin numbers match your hardware
   - For Node, change the pin in `pi/node/main.js` from `529` to a valid BCM number (e.g., `17`) for Raspberry Pi
+
+## How it works (one‑minute version)
+- Pi generates random 16‑bit service/characteristic UUIDs and a short session key (`bleKey`), then publishes a deep link to the `qr` MQTT topic.
+- The kiosk subscribes to `qr` over WebSocket and renders a QR code.
+- The Android app scans the QR, reconstructs full 128‑bit UUIDs, connects over BLE, reads current state, then sends JSON commands including the `bleKey`.
 
 ## Security Notes
 - Local only: MQTT is anonymous and bound locally; do not expose it to untrusted networks.
@@ -93,6 +180,73 @@ The project includes everything needed to provision a Raspberry Pi (web kiosk, M
 - Web kiosk subscribes to MQTT topic `qr` and renders the deep link as a QR.
 - Pi publishes to `qr` and listens to `qr_backend` to prompt QR refresh.
 - Services: `remoteled-node.service` and `remoteled-python.service` (conflicting).
+
+## Database Setup
+
+RemoteLED uses PostgreSQL to store device information, services/products, orders, authorizations, and telemetry logs. The database supports the complete customer journey from QR scan to device activation.
+
+### Quick Database Setup
+
+1. **Install PostgreSQL 15+** (macOS with Homebrew):
+   ```bash
+   brew install postgresql@15
+   export PATH="/opt/homebrew/opt/postgresql@15/bin:$PATH"
+   brew services start postgresql@15
+   ```
+
+2. **Create and initialize the database**:
+   ```bash
+   createdb remoteled
+   psql -d remoteled -f database/schema.sql
+   psql -d remoteled -f database/seed.sql  # Optional: load test data
+   ```
+
+3. **Verify setup**:
+   ```bash
+   psql remoteled -c "SELECT * FROM v_devices_summary;"
+   ```
+
+### Database Schema Overview
+
+The database consists of 6 main tables:
+
+- **devices**: Raspberry Pi devices with their public keys for signature verification
+- **services**: Products offered by each device (TRIGGER, FIXED, VARIABLE types)
+- **orders**: Customer orders tracking the lifecycle (CREATED → PAID → RUNNING → DONE)
+- **authorizations**: Cryptographically signed payloads sent to devices via BLE
+- **logs**: Communication and telemetry logs between Pi and server
+- **admins**: Administrative users managing the system
+
+### Service Types
+
+- **TRIGGER**: One-time activation (2 seconds) - e.g., vending machine dispense
+- **FIXED**: Fixed duration - e.g., 40-minute laundry cycle ($2.50)
+- **VARIABLE**: Pay-per-time - e.g., air compressor ($0.25 per 6 minutes)
+
+### Order Lifecycle
+
+```
+CREATED → PAID → RUNNING → DONE
+           ↓         ↓
+         FAILED   FAILED
+```
+
+### Connection String
+
+For application configuration:
+```
+postgresql://localhost:5432/remoteled
+```
+
+**📚 Complete database documentation**: See [`database/README.md`](database/README.md) for detailed schema, queries, and maintenance instructions.
+
+## Further reading
+- `docs/ARCHITECTURE.md`
+- `docs/CODEBASE_OVERVIEW.md`
+- `docs/UNDERSTANDING_REMOTELED_CORE_CONCEPTS.md`
+- `docs/QR_FLOW.md`
+- `docs/VENDINGMACHINE_DIAGRAMS.md`
+- `database/README.md`
 
 ## Notes
 - Binaries (`remoteled.apk`, zipped artifacts) are included here for convenience during local development. Avoid committing binaries in a public repo; build from source instead.
