@@ -14,6 +14,8 @@ __pycache__/
 *.pyo
 *.pyd
 .venv/
+venv/
+env/
 pi/python/bt/
 
 # Android (root-level safety; Android module has its own .gitignore too)
