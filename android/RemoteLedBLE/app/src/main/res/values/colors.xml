@@ -1,7 +1,51 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Base Colors -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
-    <color name="darkBackground">#303F9F</color>
-    <color name="nightBackground">#FF4081</color>
+    
+    <!-- Brand Colors - Purple Gradient -->
+    <color name="primary_purple">#667eea</color>
+    <color name="primary_purple_dark">#764ba2</color>
+    
+    <!-- Screen Backgrounds -->
+    <color name="screen_background">#f7fafc</color>
+    
+    <!-- Text Colors -->
+    <color name="text_primary">#2d3748</color>
+    <color name="text_secondary">#718096</color>
+    <color name="text_on_primary">#ffffff</color>
+    
+    <!-- Card & Surface Colors -->
+    <color name="card_background">#ffffff</color>
+    <color name="card_selected">#f0f4ff</color>
+    
+    <!-- Border Colors -->
+    <color name="border_default">#e2e8f0</color>
+    <color name="border_selected">#667eea</color>
+    
+    <!-- Service Type Badge Colors -->
+    <color name="badge_trigger_bg">#bee3f8</color>
+    <color name="badge_trigger_text">#2c5282</color>
+    <color name="badge_fixed_bg">#c6f6d5</color>
+    <color name="badge_fixed_text">#22543d</color>
+    <color name="badge_variable_bg">#feebc8</color>
+    <color name="badge_variable_text">#7c2d12</color>
+    
+    <!-- LED Colors -->
+    <color name="led_blue">#4299e1</color>
+    <color name="led_green">#48bb78</color>
+    <color name="led_amber">#ed8936</color>
+    <color name="led_red">#f56565</color>
+    <color name="led_off">#e2e8f0</color>
+    
+    <!-- Status Colors -->
+    <color name="success_bg">#c6f6d5</color>
+    <color name="success_text">#22543d</color>
+    <color name="error_bg">#fed7d7</color>
+    <color name="error_text">#742a2a</color>
+    
+    <!-- Legacy (for compatibility) -->
+    <color name="darkBackground">#667eea</color>
+    <color name="nightBackground">#764ba2</color>
 </resources>
