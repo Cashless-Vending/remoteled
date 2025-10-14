@@ -116,9 +116,9 @@ class TelemetryEvent(str, Enum):
 
 class TelemetryRequest(BaseModel):
     event: TelemetryEvent
-    order_id: Optional[str]
-    details: Optional[str]
-    payload_hash: Optional[str]
+    order_id: Optional[str] = None
+    details: Optional[str] = None
+    payload_hash: Optional[str] = None
 
 
 class LogResponse(BaseModel):
