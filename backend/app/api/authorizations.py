@@ -6,6 +6,7 @@ from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 from app.core.database import get_db
 from app.core.config import settings
+from app.core.validators import validate_uuid
 from app.models.schemas import (
     AuthorizationCreateRequest, AuthorizationResponse, 
     AuthorizationPayload, OrderStatus
@@ -111,6 +112,9 @@ def create_authorization(
 @router.get("/{authorization_id}", response_model=AuthorizationResponse)
 def get_authorization(authorization_id: str, cursor: RealDictCursor = Depends(get_db)):
     """Get authorization by ID"""
+    # Validate UUID format
+    validate_uuid(authorization_id, "Authorization ID")
+    
     cursor.execute(
         """
         SELECT id, order_id, device_id, payload_json, signature_hex, expires_at, created_at
@@ -135,6 +139,9 @@ def get_authorization(authorization_id: str, cursor: RealDictCursor = Depends(ge
 @router.get("/order/{order_id}", response_model=AuthorizationResponse)
 def get_authorization_by_order(order_id: str, cursor: RealDictCursor = Depends(get_db)):
     """Get authorization by order ID"""
+    # Validate UUID format
+    validate_uuid(order_id, "Order ID")
+    
     cursor.execute(
         """
         SELECT id, order_id, device_id, payload_json, signature_hex, expires_at, created_at
