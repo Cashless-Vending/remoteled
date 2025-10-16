@@ -4,6 +4,7 @@ Telemetry/Logging API endpoints
 from fastapi import APIRouter, Depends, HTTPException
 from psycopg2.extras import RealDictCursor
 from app.core.database import get_db
+from app.core.validators import validate_uuid
 from app.models.schemas import TelemetryRequest, LogResponse, OrderStatus
 from app.services.crypto import crypto_service
 
@@ -26,6 +27,11 @@ def create_telemetry_log(
     
     This also updates the order status based on the event.
     """
+    # Validate UUID format
+    validate_uuid(device_id, "Device ID")
+    if telemetry.order_id:
+        validate_uuid(telemetry.order_id, "Order ID")
+    
     # Validate device exists
     cursor.execute("SELECT id FROM devices WHERE id = %s", (device_id,))
     if not cursor.fetchone():
@@ -87,6 +93,9 @@ def get_device_logs(
     cursor: RealDictCursor = Depends(get_db)
 ):
     """Get recent logs for a device"""
+    # Validate UUID format
+    validate_uuid(device_id, "Device ID")
+    
     # Validate device exists
     cursor.execute("SELECT id FROM devices WHERE id = %s", (device_id,))
     if not cursor.fetchone():
