@@ -4,6 +4,7 @@ Order API endpoints
 from fastapi import APIRouter, Depends, HTTPException
 from psycopg2.extras import RealDictCursor
 from app.core.database import get_db
+from app.core.validators import validate_uuid
 from app.models.schemas import (
     OrderCreateRequest, OrderResponse, OrderStatusUpdateRequest, OrderStatus
 )
@@ -22,6 +23,10 @@ def create_order(order_req: OrderCreateRequest, cursor: RealDictCursor = Depends
     3. Calculate authorized minutes based on service type
     4. Create order with status CREATED
     """
+    # Validate UUID formats
+    validate_uuid(order_req.device_id, "Device ID")
+    validate_uuid(order_req.product_id, "Product ID")
+    
     # Validate device exists
     cursor.execute("SELECT id FROM devices WHERE id = %s", (order_req.device_id,))
     if not cursor.fetchone():
@@ -78,6 +83,9 @@ def create_order(order_req: OrderCreateRequest, cursor: RealDictCursor = Depends
 @router.get("/{order_id}", response_model=OrderResponse)
 def get_order(order_id: str, cursor: RealDictCursor = Depends(get_db)):
     """Get order by ID"""
+    # Validate UUID format
+    validate_uuid(order_id, "Order ID")
+    
     cursor.execute(
         """
         SELECT id, device_id, product_id, amount_cents, authorized_minutes,
@@ -110,6 +118,9 @@ def update_order_status(
     - RUNNING -> DONE (session complete)
     - PAID/RUNNING -> FAILED (error occurred)
     """
+    # Validate UUID format
+    validate_uuid(order_id, "Order ID")
+    
     # Get current order
     cursor.execute("SELECT status FROM orders WHERE id = %s", (order_id,))
     order = cursor.fetchone()

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from psycopg2.extras import RealDictCursor
 from typing import List
 from app.core.database import get_db
+from app.core.validators import validate_uuid
 from app.models.schemas import DeviceResponse, ServiceResponse, DeviceWithServicesResponse
 
 router = APIRouter(prefix="/devices", tags=["devices"])
@@ -13,6 +14,9 @@ router = APIRouter(prefix="/devices", tags=["devices"])
 @router.get("/{device_id}", response_model=DeviceResponse)
 def get_device(device_id: str, cursor: RealDictCursor = Depends(get_db)):
     """Get device by ID"""
+    # Validate UUID format
+    validate_uuid(device_id, "Device ID")
+    
     cursor.execute(
         """
         SELECT id, label, model, location, status, created_at
@@ -32,6 +36,9 @@ def get_device(device_id: str, cursor: RealDictCursor = Depends(get_db)):
 @router.get("/{device_id}/services", response_model=List[ServiceResponse])
 def get_device_services(device_id: str, cursor: RealDictCursor = Depends(get_db)):
     """Get all active services/products for a device"""
+    # Validate UUID format
+    validate_uuid(device_id, "Device ID")
+    
     # First verify device exists
     cursor.execute("SELECT id FROM devices WHERE id = %s", (device_id,))
     if not cursor.fetchone():
@@ -56,6 +63,9 @@ def get_device_services(device_id: str, cursor: RealDictCursor = Depends(get_db)
 @router.get("/{device_id}/full", response_model=DeviceWithServicesResponse)
 def get_device_with_services(device_id: str, cursor: RealDictCursor = Depends(get_db)):
     """Get device with all its services in one call"""
+    # Validate UUID format
+    validate_uuid(device_id, "Device ID")
+    
     # Get device
     cursor.execute(
         """
