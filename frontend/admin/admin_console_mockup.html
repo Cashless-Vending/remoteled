@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VendingMachine Admin Console</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #2d3748;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 0.875rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            border-left: 4px solid;
+        }
+
+        .stat-card.blue { border-left-color: #4299e1; }
+        .stat-card.green { border-left-color: #48bb78; }
+        .stat-card.purple { border-left-color: #9f7aea; }
+        .stat-card.orange { border-left-color: #ed8936; }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: #718096;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .stat-change {
+            font-size: 0.875rem;
+            margin-top: 0.5rem;
+        }
+
+        .stat-change.positive { color: #48bb78; }
+        .stat-change.negative { color: #f56565; }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            overflow: hidden;
+        }
+
+        .card-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a67d8;
+        }
+
+        .btn-success {
+            background: #48bb78;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #f56565;
+            color: white;
+        }
+
+        .btn-sm {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.8125rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: #f7fafc;
+        }
+
+        th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: #4a5568;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 1rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        tr:hover {
+            background: #f7fafc;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.online {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .badge.offline {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .badge.active {
+            background: #bee3f8;
+            color: #2c5282;
+        }
+
+        .badge.paid {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .badge.running {
+            background: #feebc8;
+            color: #7c2d12;
+        }
+
+        .badge.done {
+            background: #e9d8fd;
+            color: #44337a;
+        }
+
+        .badge.failed {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .chart-container {
+            padding: 1.5rem;
+            padding-bottom: 3rem;
+            height: 350px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            gap: 1rem;
+        }
+
+        .bar {
+            flex: 1;
+            background: linear-gradient(to top, #667eea, #764ba2);
+            border-radius: 4px 4px 0 0;
+            position: relative;
+            transition: all 0.3s;
+            min-height: 40px;
+        }
+
+        .bar:hover {
+            opacity: 0.8;
+        }
+
+        .bar-label {
+            position: absolute;
+            bottom: -2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.75rem;
+            color: #718096;
+            white-space: nowrap;
+        }
+
+        .bar-value {
+            position: absolute;
+            top: -1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .device-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1.5rem;
+            padding: 1.5rem;
+        }
+
+        .device-card {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1.25rem;
+            transition: all 0.2s;
+        }
+
+        .device-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15);
+        }
+
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 1rem;
+        }
+
+        .device-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: #2d3748;
+        }
+
+        .device-id {
+            font-size: 0.75rem;
+            color: #a0aec0;
+            margin-top: 0.25rem;
+        }
+
+        .device-info {
+            font-size: 0.875rem;
+            color: #4a5568;
+            margin-bottom: 0.5rem;
+        }
+
+        .device-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+        }
+
+        .log-entry {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            font-family: 'Monaco', 'Courier New', monospace;
+            font-size: 0.8125rem;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: #718096;
+            margin-right: 1rem;
+        }
+
+        .log-level {
+            margin-right: 1rem;
+            font-weight: 600;
+        }
+
+        .log-level.info { color: #4299e1; }
+        .log-level.success { color: #48bb78; }
+        .log-level.error { color: #f56565; }
+        .log-level.warning { color: #ed8936; }
+
+        .tabs {
+            display: flex;
+            border-bottom: 2px solid #e2e8f0;
+            padding: 0 1.5rem;
+        }
+
+        .tab {
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            font-weight: 500;
+            color: #718096;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #a0aec0;
+        }
+
+        .empty-state svg {
+            width: 64px;
+            height: 64px;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+
+        @media (max-width: 768px) {
+            .grid-2 {
+                grid-template-columns: 1fr;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🏪 VendingMachine Admin Console</h1>
+        <p>Monitor and manage your cashless vending devices</p>
+    </div>
+
+    <div class="container">
+        <!-- Statistics Overview -->
+        <div class="stats-grid">
+            <div class="stat-card blue">
+                <div class="stat-label">Total Devices</div>
+                <div class="stat-value">24</div>
+                <div class="stat-change positive">↑ 3 this month</div>
+            </div>
+            <div class="stat-card green">
+                <div class="stat-label">Active Orders</div>
+                <div class="stat-value">147</div>
+                <div class="stat-change positive">↑ 12% vs last week</div>
+            </div>
+            <div class="stat-card purple">
+                <div class="stat-label">Revenue Today</div>
+                <div class="stat-value">$892</div>
+                <div class="stat-change positive">↑ 8% vs yesterday</div>
+            </div>
+            <div class="stat-card orange">
+                <div class="stat-label">Success Rate</div>
+                <div class="stat-value">96.8%</div>
+                <div class="stat-change positive">↑ 2.1% this week</div>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid-2">
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Orders Last 7 Days</div>
+                </div>
+                <div class="chart-container">
+                    <div class="bar" style="height: 65%;">
+                        <div class="bar-value">18</div>
+                        <div class="bar-label">Mon</div>
+                    </div>
+                    <div class="bar" style="height: 82%;">
+                        <div class="bar-value">23</div>
+                        <div class="bar-label">Tue</div>
+                    </div>
+                    <div class="bar" style="height: 58%;">
+                        <div class="bar-value">16</div>
+                        <div class="bar-label">Wed</div>
+                    </div>
+                    <div class="bar" style="height: 95%;">
+                        <div class="bar-value">28</div>
+                        <div class="bar-label">Thu</div>
+                    </div>
+                    <div class="bar" style="height: 100%;">
+                        <div class="bar-value">31</div>
+                        <div class="bar-label">Fri</div>
+                    </div>
+                    <div class="bar" style="height: 75%;">
+                        <div class="bar-value">21</div>
+                        <div class="bar-label">Sat</div>
+                    </div>
+                    <div class="bar" style="height: 42%;">
+                        <div class="bar-value">12</div>
+                        <div class="bar-label">Sun</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title">Device Status Distribution</div>
+                </div>
+                <div class="chart-container">
+                    <div class="bar" style="height: 90%; background: linear-gradient(to top, #48bb78, #38a169);">
+                        <div class="bar-value">21</div>
+                        <div class="bar-label">Online</div>
+                    </div>
+                    <div class="bar" style="height: 15%; background: linear-gradient(to top, #f56565, #e53e3e);">
+                        <div class="bar-value">3</div>
+                        <div class="bar-label">Offline</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Devices Management -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Registered Devices</div>
+                <button class="btn btn-primary">+ Add New Device</button>
+            </div>
+            <div class="device-grid">
+                <div class="device-card">
+                    <div class="device-header">
+                        <div>
+                            <div class="device-name">Laundry Room A</div>
+                            <div class="device-id">Device ID: dev_a1b2c3d4</div>
+                        </div>
+                        <span class="badge online">Online</span>
+                    </div>
+                    <div class="device-info">📍 Building 5, Floor 2</div>
+                    <div class="device-info">🔧 GPIO Pin: 17</div>
+                    <div class="device-info">📊 3 Products Configured</div>
+                    <div class="device-actions">
+                        <button class="btn btn-primary btn-sm">Configure</button>
+                        <button class="btn btn-success btn-sm">Test Cycle</button>
+                    </div>
+                </div>
+
+                <div class="device-card">
+                    <div class="device-header">
+                        <div>
+                            <div class="device-name">Vending Machine 101</div>
+                            <div class="device-id">Device ID: dev_e5f6g7h8</div>
+                        </div>
+                        <span class="badge online">Online</span>
+                    </div>
+                    <div class="device-info">📍 Main Lobby</div>
+                    <div class="device-info">🔧 GPIO Pin: 22</div>
+                    <div class="device-info">📊 5 Products Configured</div>
+                    <div class="device-actions">
+                        <button class="btn btn-primary btn-sm">Configure</button>
+                        <button class="btn btn-success btn-sm">Test Cycle</button>
+                    </div>
+                </div>
+
+                <div class="device-card">
+                    <div class="device-header">
+                        <div>
+                            <div class="device-name">Locker Bay C</div>
+                            <div class="device-id">Device ID: dev_i9j0k1l2</div>
+                        </div>
+                        <span class="badge offline">Offline</span>
+                    </div>
+                    <div class="device-info">📍 Gym, Level B1</div>
+                    <div class="device-info">🔧 GPIO Pin: 27</div>
+                    <div class="device-info">📊 2 Products Configured</div>
+                    <div class="device-actions">
+                        <button class="btn btn-primary btn-sm">Configure</button>
+                        <button class="btn btn-danger btn-sm">Troubleshoot</button>
+                    </div>
+                </div>
+
+                <div class="device-card">
+                    <div class="device-header">
+                        <div>
+                            <div class="device-name">EV Charging Station 3</div>
+                            <div class="device-id">Device ID: dev_m3n4o5p6</div>
+                        </div>
+                        <span class="badge online">Online</span>
+                    </div>
+                    <div class="device-info">📍 Parking Lot A</div>
+                    <div class="device-info">🔧 GPIO Pin: 18</div>
+                    <div class="device-info">📊 4 Products Configured</div>
+                    <div class="device-actions">
+                        <button class="btn btn-primary btn-sm">Configure</button>
+                        <button class="btn btn-success btn-sm">Test Cycle</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Orders -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Recent Orders</div>
+                <button class="btn btn-primary btn-sm">Export CSV</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Device</th>
+                        <th>Product Type</th>
+                        <th>Amount</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>ord_9a8b7c6d</td>
+                        <td>Laundry Room A</td>
+                        <td>FIXED</td>
+                        <td>$2.50</td>
+                        <td>40 min</td>
+                        <td><span class="badge done">Done</span></td>
+                        <td>2025-09-30 14:32:15</td>
+                    </tr>
+                    <tr>
+                        <td>ord_5e4f3g2h</td>
+                        <td>Vending Machine 101</td>
+                        <td>TRIGGER</td>
+                        <td>$1.00</td>
+                        <td>2 sec</td>
+                        <td><span class="badge done">Done</span></td>
+                        <td>2025-09-30 14:28:42</td>
+                    </tr>
+                    <tr>
+                        <td>ord_1i2j3k4l</td>
+                        <td>EV Charging Station 3</td>
+                        <td>VARIABLE</td>
+                        <td>$5.00</td>
+                        <td>120 min</td>
+                        <td><span class="badge running">Running</span></td>
+                        <td>2025-09-30 13:45:20</td>
+                    </tr>
+                    <tr>
+                        <td>ord_m5n6o7p8</td>
+                        <td>Laundry Room A</td>
+                        <td>FIXED</td>
+                        <td>$2.50</td>
+                        <td>40 min</td>
+                        <td><span class="badge paid">Paid</span></td>
+                        <td>2025-09-30 13:12:55</td>
+                    </tr>
+                    <tr>
+                        <td>ord_q9r0s1t2</td>
+                        <td>Locker Bay C</td>
+                        <td>FIXED</td>
+                        <td>$0.50</td>
+                        <td>30 min</td>
+                        <td><span class="badge failed">Failed</span></td>
+                        <td>2025-09-30 12:58:33</td>
+                    </tr>
+                    <tr>
+                        <td>ord_u3v4w5x6</td>
+                        <td>Vending Machine 101</td>
+                        <td>TRIGGER</td>
+                        <td>$1.00</td>
+                        <td>2 sec</td>
+                        <td><span class="badge done">Done</span></td>
+                        <td>2025-09-30 12:45:18</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Products Configuration -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">Product Catalog</div>
+                <button class="btn btn-primary">+ Add Product</button>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Product ID</th>
+                        <th>Device</th>
+                        <th>Type</th>
+                        <th>Price</th>
+                        <th>Duration/Action</th>
+                        <th>LED Color</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>prod_wash_01</td>
+                        <td>Laundry Room A</td>
+                        <td>FIXED</td>
+                        <td>$2.50</td>
+                        <td>40 minutes</td>
+                        <td>🟢 Green Solid</td>
+                        <td><span class="badge active">Active</span></td>
+                        <td>
+                            <button class="btn btn-primary btn-sm">Edit</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>prod_snack_01</td>
+                        <td>Vending Machine 101</td>
+                        <td>TRIGGER</td>
+                        <td>$1.00</td>
+                        <td>Single dispense</td>
+                        <td>🔵 Blue Blink</td>
+                        <td><span class="badge active">Active</span></td>
+                        <td>
+                            <button class="btn btn-primary btn-sm">Edit</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>prod_charge_01</td>
+                        <td>EV Charging Station 3</td>
+                        <td>VARIABLE</td>
+                        <td>$0.25 / 6min</td>
+                        <td>Variable duration</td>
+                        <td>🟠 Amber Solid</td>
+                        <td><span class="badge active">Active</span></td>
+                        <td>
+                            <button class="btn btn-primary btn-sm">Edit</button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>prod_lock_01</td>
+                        <td>Locker Bay C</td>
+                        <td>FIXED</td>
+                        <td>$0.50</td>
+                        <td>30 minutes</td>
+                        <td>🟢 Green Solid</td>
+                        <td><span class="badge active">Active</span></td>
+                        <td>
+                            <button class="btn btn-primary btn-sm">Edit</button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- System Logs -->
+        <div class="card">
+            <div class="card-header">
+                <div class="card-title">System Logs & Telemetry</div>
+            </div>
+            <div class="tabs">
+                <div class="tab active">All Logs</div>
+                <div class="tab">Signature Verifications</div>
+                <div class="tab">Errors Only</div>
+                <div class="tab">BLE Communications</div>
+            </div>
+            <div style="max-height: 400px; overflow-y: auto;">
+                <div class="log-entry">
+                    <span class="log-time">14:32:18</span>
+                    <span class="log-level success">[SUCCESS]</span>
+                    <span>Device dev_a1b2c3d4 - Order ord_9a8b7c6d completed. Duration: 40:02 (expected: 40:00)</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">14:32:15</span>
+                    <span class="log-level info">[INFO]</span>
+                    <span>Device dev_a1b2c3d4 - STARTED event received. GPIO actuated for FIXED product.</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">14:32:14</span>
+                    <span class="log-level success">[VERIFY]</span>
+                    <span>Signature verification successful for authorization auth_x7y8z9. Nonce: b6bd2f90-..., Expiry: 60s</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">14:28:45</span>
+                    <span class="log-level success">[SUCCESS]</span>
+                    <span>Device dev_e5f6g7h8 - Order ord_5e4f3g2h completed. Duration: 2.1s (expected: 2s)</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">14:28:42</span>
+                    <span class="log-level info">[BLE]</span>
+                    <span>Device dev_e5f6g7h8 - BLE command sent via mobile bridge. RTT: 245ms</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">13:45:20</span>
+                    <span class="log-level info">[INFO]</span>
+                    <span>Device dev_m3n4o5p6 - VARIABLE product started. Duration: 120 minutes ($5.00)</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">12:58:35</span>
+                    <span class="log-level error">[ERROR]</span>
+                    <span>Device dev_i9j0k1l2 - BLE connection timeout. Device appears offline. Order ord_q9r0s1t2 marked as FAILED.</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">12:45:20</span>
+                    <span class="log-level success">[SUCCESS]</span>
+                    <span>Device dev_e5f6g7h8 - Order ord_u3v4w5x6 completed successfully.</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">12:30:15</span>
+                    <span class="log-level warning">[WARNING]</span>
+                    <span>Device dev_a1b2c3d4 - Signature verification took 850ms (threshold: 500ms). Check server load.</span>
+                </div>
+                <div class="log-entry">
+                    <span class="log-time">11:22:08</span>
+                    <span class="log-level info">[INFO]</span>
+                    <span>Admin user admin@vendingmachine.com logged in from 192.168.1.105</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Add some interactivity for demo purposes
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+
+        // Animate bars on load
+        window.addEventListener('load', function() {
+            document.querySelectorAll('.bar').forEach((bar, index) => {
+                const targetHeight = bar.style.height;
+                bar.style.height = '0%';
+                setTimeout(() => {
+                    bar.style.height = targetHeight;
+                }, 100 + (100 * index));
+            });
+        });
+    </script>
+</body>
+</html>
