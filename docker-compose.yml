@@ -10,13 +10,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.iot
-      platforms:
-        - linux/arm64
+    platform: linux/arm64
     network_mode: host
     privileged: true
     devices:
       - /dev/gpiomem:/dev/gpiomem
       - /dev/mem:/dev/mem
+    volumes:
+      - /run/dbus:/run/dbus
+      - /var/run/dbus:/var/run/dbus
     depends_on:
       - mosquitto
     restart: unless-stopped
@@ -25,8 +27,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.web
-      platforms:
-        - linux/arm64
+    platform: linux/arm64
     network_mode: host
     depends_on:
       - mosquitto
