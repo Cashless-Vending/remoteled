@@ -19,6 +19,8 @@ import com.example.remoteled.models.DeviceWithServices;
 import com.example.remoteled.models.Service;
 import com.example.remoteled.network.RetrofitClient;
 
+import java.util.List;
+
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
