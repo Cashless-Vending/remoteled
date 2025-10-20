@@ -18,10 +18,10 @@ from bleak import BleakClient, BleakScanner
 
 # Default UUID format from your Pi code
 # You MUST update these with actual values from your Pi
-SERVICE_UUID = "0000FFFF-0000-1000-8000-00805f9b34fb"  # CHANGE THIS
-CHAR_UUID = "0000EEEE-0000-1000-8000-00805f9b34fb"     # CHANGE THIS
-BLE_KEY = "ABCD"  # CHANGE THIS
-DEVICE_NAME = "Remote LED"  # Pi's BLE device name
+SERVICE_UUID = "0000ED5C-0000-1000-8000-00805f9b34fb"
+CHAR_UUID = "00005B57-0000-1000-8000-00805f9b34fb"
+BLE_KEY = "6372"
+DEVICE_NAME = "Remote LED"
 
 async def find_device():
     """Scan for Pi BLE peripheral by name"""

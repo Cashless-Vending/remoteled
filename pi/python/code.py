@@ -65,7 +65,8 @@ class LEDController:
     def on_disconnect(cls, adapter_address, device_address):
         global current_peripheral
         print(f"Disconnected from BLE device: {device_address}")
-        trigger.set()
+        # Don't trigger exit - disconnects are normal after each request
+        # trigger.set()
 
     @classmethod
     def on_read(cls, options):

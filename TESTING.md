@@ -69,47 +69,40 @@ BLE_KEY = "ZZZZ"  # From Pi
 
 ## Testing
 
-### Option 1: Full Pipeline Test
+### Full Pipeline Test (ONE COMMAND!)
 
 **Terminal 1 - Start FastAPI Backend:**
 ```bash
-uvicorn backend:app --reload
+uv run --no-project uvicorn backend:app --reload
 ```
 
-**Terminal 2 - Test Payment:**
+**Terminal 2 - Send Payment (Auto-triggers LED!):**
 ```bash
-# Test success (70% chance)
+# One curl = Payment processed + LED turns on automatically!
 curl -X POST http://localhost:8000/payment \
   -H "Content-Type: application/json" \
   -d '{"amount": 100, "service": "premium"}'
 
 # Response:
 # {"status":"success","led_color":"green","duration":30,"message":"Payment success - Amount: $100.0"}
+# → Pi LED will automatically turn GREEN for 30 seconds!
 ```
 
-**Terminal 3 - Trigger LED via BLE:**
-```bash
-# Use the status from FastAPI response
-python ble_client.py success 30
+The LED will turn on automatically in the background. Check your Pi!
 
-# Or test other statuses:
-python ble_client.py fail 10
-python ble_client.py processing 15
-```
-
-### Option 2: Direct LED Control
+### Alternative: Direct LED Control (Manual Testing)
 
 Test BLE → Pi → LED without FastAPI:
 
 ```bash
 # Turn green LED on for 30 seconds
-python ble_client.py success 30
+uv run --no-project python ble_client.py success 30
 
 # Turn red LED on for 10 seconds
-python ble_client.py fail 10
+uv run --no-project python ble_client.py fail 10
 
 # Turn yellow LED on for 15 seconds
-python ble_client.py processing 15
+uv run --no-project python ble_client.py processing 15
 ```
 
 ## Troubleshooting
