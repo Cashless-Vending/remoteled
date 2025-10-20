@@ -6,10 +6,17 @@ import paho.mqtt.client as mqtt
 import time
 from bluezero import adapter, peripheral
 
-# GPIO setup
+# GPIO setup - Three LEDs for payment status
 GPIO.setmode(GPIO.BCM)
-GPIO.setup(17, GPIO.OUT)
-GPIO.output(17, GPIO.LOW)  # Set initial state
+GREEN_PIN = 17   # Success
+YELLOW_PIN = 19  # Processing
+RED_PIN = 27     # Fail
+GPIO.setup(GREEN_PIN, GPIO.OUT)
+GPIO.setup(YELLOW_PIN, GPIO.OUT)
+GPIO.setup(RED_PIN, GPIO.OUT)
+GPIO.output(GREEN_PIN, GPIO.LOW)
+GPIO.output(YELLOW_PIN, GPIO.LOW)
+GPIO.output(RED_PIN, GPIO.LOW)
 
 # Global state for the LED and BLE characteristics
 led_state = 'off'
@@ -69,19 +76,42 @@ class LEDController:
     def on_write(cls, value, options):
         global led_state
         try:
-            value_str = value.decode("utf-8")  # Decode bytes to string
-            data = json.loads(value_str)  # Parse JSON data
+            value_str = value.decode("utf-8")
+            data = json.loads(value_str)
             command = data.get("command", "").upper()
+            color = data.get("color", "green").lower()
             request_key = data.get("bleKey", "")
+
             if request_key == bleKey:
+                # Map colors to GPIO pins
+                pin_map = {
+                    "green": GREEN_PIN,
+                    "yellow": YELLOW_PIN,
+                    "red": RED_PIN
+                }
+
                 if command == "ON":
-                    led_state = 'on'
-                    GPIO.output(17, GPIO.HIGH)
-                    print("GPIO pin 17 turned ON")
+                    # Turn off all LEDs first
+                    GPIO.output(GREEN_PIN, GPIO.LOW)
+                    GPIO.output(YELLOW_PIN, GPIO.LOW)
+                    GPIO.output(RED_PIN, GPIO.LOW)
+
+                    # Turn on requested LED
+                    if color in pin_map:
+                        GPIO.output(pin_map[color], GPIO.HIGH)
+                        led_state = f'{color}_on'
+                        print(f"{color.upper()} LED turned ON (GPIO {pin_map[color]})")
+                    else:
+                        print(f"Unknown color: {color}")
+
                 elif command == "OFF":
+                    # Turn off all LEDs
+                    GPIO.output(GREEN_PIN, GPIO.LOW)
+                    GPIO.output(YELLOW_PIN, GPIO.LOW)
+                    GPIO.output(RED_PIN, GPIO.LOW)
                     led_state = 'off'
-                    GPIO.output(17, GPIO.LOW)
-                    print("GPIO pin 17 turned OFF")
+                    print("All LEDs turned OFF")
+
                 elif command == "CONNECT":
                     print("New Device Connected")
                     client.publish("qr","CONNECTED!")
