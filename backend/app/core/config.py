@@ -8,8 +8,24 @@ from typing import List
 class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
     
-    # Database
-    DATABASE_URL: str = "postgresql://localhost:5432/remoteled"
+    # Database - individual parameters (for Docker)
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 5432
+    DB_NAME: str = "remoteled"
+    DB_USER: str = "postgres"
+    DB_PASSWORD: str = ""
+    
+    # Database - full URL (takes precedence if set)
+    DATABASE_URL: str = ""
+    
+    @property
+    def database_url(self) -> str:
+        """Get database URL, construct from parts if not explicitly set"""
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+        # Construct from individual parameters
+        password_part = f":{self.DB_PASSWORD}" if self.DB_PASSWORD else ""
+        return f"postgresql://{self.DB_USER}{password_part}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
     
     # API
     API_HOST: str = "0.0.0.0"
