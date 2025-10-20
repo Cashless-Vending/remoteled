@@ -85,7 +85,7 @@ async def trigger_payment_led(payment_status: str, duration: int = 10):
 
     Args:
         payment_status: "success", "fail", or "processing"
-        duration: How long to keep LED on (seconds)
+        duration: How long to keep LED on (seconds, default 10s)
     """
 
     # Map payment status to LED color
@@ -103,23 +103,47 @@ async def trigger_payment_led(payment_status: str, duration: int = 10):
     print(f"Duration: {duration}s")
     print(f"{'='*50}\n")
 
-    # Turn LED ON
-    success = await send_led_command(color, "ON")
+    # Find Pi device
+    device_address = await find_device()
+    if not device_address:
+        print("ERROR: Could not find Pi device. Is it running?")
+        return
 
-    if success and duration > 0:
-        print(f"Waiting {duration} seconds...")
-        await asyncio.sleep(duration)
+    # Keep connection open for entire duration
+    try:
+        async with BleakClient(device_address, timeout=10.0) as client:
+            # Turn LED ON
+            payload_on = {
+                "command": "ON",
+                "color": color.lower(),
+                "bleKey": BLE_KEY
+            }
+            await client.write_gatt_char(CHAR_UUID, json.dumps(payload_on).encode('utf-8'))
+            print(f"✓ {color} LED turned ON")
 
-        # Turn LED OFF
-        await send_led_command(color, "OFF")
-        print("LED turned off")
+            # Wait
+            if duration > 0:
+                print(f"Waiting {duration} seconds...")
+                await asyncio.sleep(duration)
+
+            # Turn LED OFF
+            payload_off = {
+                "command": "OFF",
+                "color": color.lower(),
+                "bleKey": BLE_KEY
+            }
+            await client.write_gatt_char(CHAR_UUID, json.dumps(payload_off).encode('utf-8'))
+            print(f"✓ {color} LED turned OFF")
+
+    except Exception as e:
+        print(f"ERROR: {e}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python ble_client.py <payment_status> [duration]")
         print("  payment_status: success, fail, or processing")
         print("  duration: seconds (optional, default 10)")
-        print("\nExample: python ble_client.py success 30")
+        print("\nExample: python ble_client.py success 10")
         sys.exit(1)
 
     status = sys.argv[1]
