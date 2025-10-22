@@ -1,22 +1,13 @@
 import json
 import random
 import threading
-import RPi.GPIO as GPIO
 import paho.mqtt.client as mqtt
 import time
 from bluezero import adapter, peripheral
+from led_service import LEDService
 
-# GPIO setup - Three LEDs for payment status
-GPIO.setmode(GPIO.BCM)
-GREEN_PIN = 17   # Success
-YELLOW_PIN = 19  # Processing
-RED_PIN = 27     # Fail
-GPIO.setup(GREEN_PIN, GPIO.OUT)
-GPIO.setup(YELLOW_PIN, GPIO.OUT)
-GPIO.setup(RED_PIN, GPIO.OUT)
-GPIO.output(GREEN_PIN, GPIO.LOW)
-GPIO.output(YELLOW_PIN, GPIO.LOW)
-GPIO.output(RED_PIN, GPIO.LOW)
+# Initialize LED service
+led_service = LEDService()
 
 # Global state for the LED and BLE characteristics
 led_state = 'off'
@@ -84,34 +75,17 @@ class LEDController:
             request_key = data.get("bleKey", "")
 
             if request_key == bleKey:
-                # Map colors to GPIO pins
-                pin_map = {
-                    "green": GREEN_PIN,
-                    "yellow": YELLOW_PIN,
-                    "red": RED_PIN
-                }
-
                 if command == "ON":
-                    # Turn off all LEDs first
-                    GPIO.output(GREEN_PIN, GPIO.LOW)
-                    GPIO.output(YELLOW_PIN, GPIO.LOW)
-                    GPIO.output(RED_PIN, GPIO.LOW)
-
-                    # Turn on requested LED
-                    if color in pin_map:
-                        GPIO.output(pin_map[color], GPIO.HIGH)
+                    # Use LED service to turn on requested LED (turns off others first)
+                    if led_service.set_color_exclusive(color):
                         led_state = f'{color}_on'
-                        print(f"{color.upper()} LED turned ON (GPIO {pin_map[color]})")
                     else:
                         print(f"Unknown color: {color}")
 
                 elif command == "OFF":
-                    # Turn off all LEDs
-                    GPIO.output(GREEN_PIN, GPIO.LOW)
-                    GPIO.output(YELLOW_PIN, GPIO.LOW)
-                    GPIO.output(RED_PIN, GPIO.LOW)
+                    # Use LED service to turn off all LEDs
+                    led_service.turn_off_all()
                     led_state = 'off'
-                    print("All LEDs turned OFF")
 
                 elif command == "CONNECT":
                     print("New Device Connected")
