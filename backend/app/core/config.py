@@ -12,9 +12,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql://localhost:5432/remoteled"
 
     # BLE Configuration
-    BLE_SERVICE_UUID: str = "0000C256-0000-1000-8000-00805f9b34fb"
-    BLE_CHAR_UUID: str = "000049A2-0000-1000-8000-00805f9b34fb"
-    BLE_KEY: str = "FB0E"
+    BLE_SERVICE_UUID: str = "000088F4-0000-1000-8000-00805f9b34fb"
+    BLE_CHAR_UUID: str = "00000E32-0000-1000-8000-00805f9b34fb"
+    BLE_KEY: str = "A920"
     BLE_DEVICE_NAME: str = "Remote LED"
 
     # API

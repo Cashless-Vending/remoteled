@@ -12,7 +12,7 @@ class Database:
     """Database connection manager"""
     
     def __init__(self):
-        self.connection_string = settings.database_url
+        self.connection_string = settings.DATABASE_URL
     
     @contextmanager
     def get_connection(self) -> Generator:
