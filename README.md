@@ -250,41 +250,61 @@ postgresql://localhost:5432/remoteled
 
 **📚 Complete database documentation**: See [`database/README.md`](database/README.md) for detailed schema, queries, and maintenance instructions.
 
-## Testing LED Control (Development)
+## Testing
 
-### Testing Unified LED Service
+### Quick Testing Guide
 
-After implementing the unified LED control (Issue #59), test the new LEDService:
+**1. Install Dependencies**
 
-**On Raspberry Pi:**
+macOS (development):
 ```bash
-# 1. Test LEDService standalone (optional)
-cd /usr/local/remoteled/python
-python3 led_service.py
-
-# 2. Run BLE peripheral with LEDService
-python3 code.py
-# Expected output: "[LEDService] Initialized GPIO pins: {'green': 17, 'yellow': 19, 'red': 27}"
+uv sync
 ```
 
-**On Backend Machine:**
+Raspberry Pi:
 ```bash
-# 3. Run FastAPI backend
-cd backend
-uvicorn app.main:app --reload
+uv sync --extra pi
+```
 
-# 4. Test LED triggering via payment endpoint
-# Test GREEN LED (success)
+**2. Start Pi BLE Peripheral**
+
+On Raspberry Pi:
+```bash
+cd pi/python
+python3 code.py
+```
+
+Note the UUIDs printed in the terminal:
+```
+Service UUID: 0000XXXX-0000-1000-8000-00805f9b34fb
+Characteristic UUID: 0000YYYY-0000-1000-8000-00805f9b34fb
+bleKey: ZZZZ
+```
+
+**3. Start FastAPI Backend**
+
+On your development machine:
+```bash
+cd backend
+uv run --no-project uvicorn app.main:app --reload
+```
+
+Backend will start on `http://localhost:8000`
+
+**4. Test LED Control via Payment API**
+
+```bash
+# Test GREEN LED (payment success)
 curl -X POST http://localhost:8000/api/payment/mock \
   -H "Content-Type: application/json" \
   -d '{"status": "success"}'
 
-# Test RED LED (failed)
+# Test RED LED (payment failed)
 curl -X POST http://localhost:8000/api/payment/mock \
   -H "Content-Type: application/json" \
   -d '{"status": "failed"}'
 
-# Test YELLOW LED (processing)
+# Test YELLOW LED (payment processing)
 curl -X POST http://localhost:8000/api/payment/mock \
   -H "Content-Type: application/json" \
   -d '{"status": "processing"}'
@@ -293,9 +313,14 @@ curl -X POST http://localhost:8000/api/payment/mock \
 **Expected Results:**
 - Pi logs: `[LEDService] GREEN LED (GPIO 17) turned ON (exclusive)`
 - Backend logs: `[BLE] ✓ green LED turned ON`
-- Hardware: Correct LED lights up using unified pin mapping (Green=17, Yellow=19, Red=27)
+- Hardware: Correct LED lights up (Green=GPIO17, Yellow=GPIO19, Red=GPIO27)
 
-**Note**: This replaces the old duplicate LED implementations. All LED control now uses the unified LEDService class (`pi/python/led_service.py`) and consistent GPIO pin configuration from `backend/app/core/config.py`.
+**Troubleshooting:**
+- "Device not found": Ensure Pi is running `code.py` and Bluetooth is enabled
+- "Module not found" errors: Run `uv sync` (or `uv sync --extra pi` on Pi)
+- Database connection errors: Ensure PostgreSQL is running and database is created
+
+📚 **Detailed API documentation**: See [`backend/README.md`](backend/README.md) for complete API reference
 
 ## Further reading
 - `docs/ARCHITECTURE.md`
