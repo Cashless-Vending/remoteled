@@ -1,132 +1,164 @@
-"""
-LED Control API - Direct GPIO control for demo
-In production, Android app will call these endpoints and relay to Pi via BLE
-"""
-from fastapi import APIRouter, HTTPException
+from fastapi import FastAPI, BackgroundTasks, APIRouter
 from pydantic import BaseModel
-from typing import Literal, Optional
-import RPi.GPIO as GPIO
+import random
+import asyncio
+import json
+from bleak import BleakClient, BleakScanner
 
-router = APIRouter(prefix="/led", tags=["led"])
+router = APIRouter(tags=["Pi"])
 
-# GPIO Pin Configuration (BCM numbering)
-# Correct pins: 17, 27, 19
-LED_PINS = {
-    'led1': 17,  # GPIO 17 - Green (success)
-    'led2': 27,  # GPIO 27 - Red (failed)
-    'led3': 19,  # GPIO 19 - Yellow (processing)
-}
+# BLE Configuration (from Pi deep link: remoteled://connect/2C:CF:67:7C:DF:AB/ED5C/5B57/6372)
+SERVICE_UUID = "0000C256-0000-1000-8000-00805f9b34fb"
+CHAR_UUID = "000049A2-0000-1000-8000-00805f9b34fb"
+BLE_KEY = "FB0E"
+PI_ADDRESS = "2C:CF:67:7C:DF:AB"  # Direct address from deep link
 
-# Initialize GPIO
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
+# Cache Pi address after first successful connection
+_cached_pi_address = None
 
-for pin in LED_PINS.values():
-    GPIO.setup(pin, GPIO.OUT)
-    GPIO.output(pin, GPIO.LOW)
+async def find_pi_device(force_scan=False):
+    """Scan for Pi by checking which device has our SERVICE_UUID"""
+    global _cached_pi_address
 
-print(f"✅ LED GPIO pins initialized: {LED_PINS}")
+    # Use cached address if available (unless force scan)
+    if _cached_pi_address and not force_scan:
+        print(f"[BLE] Using cached Pi address: {_cached_pi_address}")
+        return _cached_pi_address
 
+    print(f"[BLE] Scanning for device with service UUID: {SERVICE_UUID}")
+    devices = await BleakScanner.discover(timeout=10.0, return_adv=True)
 
-class LEDControlRequest(BaseModel):
-    """LED control request model"""
-    status: Optional[Literal["processing", "success", "failed"]] = None
-    color: Optional[Literal["yellow", "green", "red"]] = None
-    led: Optional[Literal["led1", "led2", "led3"]] = None
-    action: Literal["on", "off", "blink"] = "on"
+    print(f"[BLE] Found {len(devices)} devices, checking for our service...")
 
+    # Try connecting to each device to check if it has our service
+    for address, (device, adv_data) in devices.items():
+        # Check if our service UUID is advertised
+        if SERVICE_UUID.lower() in [str(uuid).lower() for uuid in adv_data.service_uuids]:
+            print(f"[BLE] ✓ Found Pi at {address} (advertised service matches)")
+            _cached_pi_address = address  # Cache it
+            return address
 
-@router.post("/control")
-def control_led(request: LEDControlRequest):
+    # Fallback: try devices with no name (Pi might be one of them)
+    print(f"[BLE] Service not advertised, trying unnamed devices...")
+    for address, (device, adv_data) in devices.items():
+        if device.name is None or device.name == "":
+            print(f"[BLE] Trying unnamed device: {address}")
+            try:
+                async with BleakClient(address, timeout=5.0) as client:
+                    services = await client.get_services()
+                    for service in services:
+                        if service.uuid.lower() == SERVICE_UUID.lower():
+                            print(f"[BLE] ✓ Found Pi at {address} (service discovered after connect)")
+                            _cached_pi_address = address  # Cache it
+                            return address
+            except Exception as e:
+                continue
+
+    print(f"[BLE] Pi not found in scan results")
+    return None
+
+async def trigger_led(color: str, duration: int):
+    """Send BLE command to Pi to trigger LED"""
+    global _cached_pi_address
+
+    print(f"\n{'='*50}")
+    print(f"[BLE] Triggering {color} LED for {duration}s")
+    print(f"{'='*50}")
+
+    try:
+        # Try to find device (uses cache if available)
+        print("[BLE] Looking for Pi...")
+        device_address = await find_pi_device()
+        if not device_address:
+            print("[BLE] ERROR: Pi not found!")
+            return
+
+        print(f"[BLE] Found Pi at {device_address}")
+
+        # Keep connection open for entire duration (turn ON, wait, turn OFF)
+        print(f"[BLE] Connecting to Pi...")
+        async with BleakClient(device_address, timeout=10.0) as client:
+            # Turn LED ON
+            payload_on = {
+                "command": "ON",
+                "color": color.lower(),
+                "bleKey": BLE_KEY
+            }
+            await client.write_gatt_char(CHAR_UUID, json.dumps(payload_on).encode('utf-8'))
+            print(f"[BLE] ✓ {color} LED turned ON")
+
+            # Wait while keeping connection open
+            print(f"[BLE] Waiting {duration}s...")
+            await asyncio.sleep(duration)
+
+            # Turn LED OFF
+            payload_off = {
+                "command": "OFF",
+                "color": color.lower(),
+                "bleKey": BLE_KEY
+            }
+            await client.write_gatt_char(CHAR_UUID, json.dumps(payload_off).encode('utf-8'))
+            print(f"[BLE] ✓ {color} LED turned OFF")
+
+    except Exception as e:
+        print(f"[BLE] ERROR: {e}")
+        # If cached address failed, clear cache and retry once
+        if _cached_pi_address:
+            print("[BLE] Cached address failed, clearing cache...")
+            _cached_pi_address = None
+        import traceback
+        traceback.print_exc()
+
+class PaymentRequest(BaseModel):
+    amount: float
+    service: str = "basic"
+
+class PaymentResponse(BaseModel):
+    status: str  # "success", "fail", "processing"
+    led_color: str  # "green", "red", "yellow"
+    duration: int  # seconds
+    message: str
+
+@router.post("/payment", response_model=PaymentResponse)
+async def process_payment(payment: PaymentRequest, background_tasks: BackgroundTasks):
     """
-    Control LED based on payment status
+    Fake payment endpoint for testing.
+    Returns random status and automatically triggers Pi LED via BLE.
 
-    Examples:
-    - {"status": "processing"} → Yellow LED blinking
-    - {"status": "success"} → Green LED on
-    - {"status": "failed"} → Red LED on
-    - {"color": "yellow", "action": "blink"} → Yellow LED blinks
-    - {"led": "led1", "action": "off"} → LED1 off
+    Status → LED mapping:
+    - success → green LED
+    - fail → red LED
+    - processing → yellow LED
     """
-    # ALWAYS turn off all LEDs first
-    for pin in LED_PINS.values():
-        GPIO.output(pin, GPIO.LOW)
 
-    # Determine which LED to control
-    target_led = None
+    # Fake payment logic - randomly assign status
+    statuses = ["success", "fail", "processing"]
+    weights = [0.7, 0.2, 0.1]  # 70% success, 20% fail, 10% processing
+    status = random.choices(statuses, weights=weights)[0]
 
-    if request.led:
-        target_led = request.led
-    elif request.color:
-        color_map = {"yellow": "led3", "green": "led1", "red": "led2"}
-        target_led = color_map.get(request.color)
-    elif request.status:
-        status_map = {"processing": "led3", "success": "led1", "failed": "led2"}
-        target_led = status_map.get(request.status)
-
-    if not target_led:
-        raise HTTPException(status_code=400, detail="Must specify status, color, or led")
-
-    pin = LED_PINS[target_led]
-
-    # Auto-blink for processing status
-    if request.status == "processing":
-        request.action = "blink"
-
-    # Execute action
-    if request.action == "on":
-        GPIO.output(pin, GPIO.HIGH)
-        return {
-            "success": True,
-            "led": target_led,
-            "pin": pin,
-            "action": "on",
-            "message": f"{target_led.upper()} (GPIO {pin}) turned ON"
-        }
-    elif request.action == "off":
-        GPIO.output(pin, GPIO.LOW)
-        return {
-            "success": True,
-            "led": target_led,
-            "pin": pin,
-            "action": "off",
-            "message": f"{target_led.upper()} (GPIO {pin}) turned OFF"
-        }
-    elif request.action == "blink":
-        import time
-        for _ in range(3):
-            GPIO.output(pin, GPIO.HIGH)
-            time.sleep(0.3)
-            GPIO.output(pin, GPIO.LOW)
-            time.sleep(0.3)
-        return {
-            "success": True,
-            "led": target_led,
-            "pin": pin,
-            "action": "blink",
-            "message": f"{target_led.upper()} (GPIO {pin}) blinked 3 times"
-        }
-
-
-@router.get("/status")
-def get_led_status():
-    """Get current status of all LEDs"""
-    status = {}
-    for led_name, pin in LED_PINS.items():
-        state = GPIO.input(pin)
-        status[led_name] = {
-            "pin": pin,
-            "state": "ON" if state else "OFF"
-        }
-    return status
-
-
-@router.post("/off")
-def turn_off_all():
-    """Turn off all LEDs"""
-    for pin in LED_PINS.values():
-        GPIO.output(pin, GPIO.LOW)
-    return {
-        "success": True,
-        "message": "All LEDs turned OFF"
+    # Map status to LED color
+    led_mapping = {
+        "success": "green",
+        "fail": "red",
+        "processing": "yellow"
     }
+
+    led_color = led_mapping[status]
+
+    # Duration: 10 seconds for all LEDs
+    duration = 10
+
+    # Trigger LED in background (non-blocking)
+    print(f"[API] Payment {status} - triggering {led_color} LED")
+    background_tasks.add_task(trigger_led, led_color, duration)
+
+    return PaymentResponse(
+        status=status,
+        led_color=led_color,
+        duration=duration,
+        message=f"Payment {status} - Amount: ${payment.amount}"
+    )
+
+@router.get("/health")
+async def health_check():
+    return {"status": "ok"}

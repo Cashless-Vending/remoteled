@@ -1,6 +1,7 @@
 """
 Configuration settings for RemoteLED backend
 """
+from backend import SERVICE_UUID
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -10,6 +11,10 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: str = "postgresql://localhost:5432/remoteled"
+
+    # ServiceUUID|CharacterUUID|
+    SERVICE_UUID: str = ""
+    CHARACTER_UUID: str = ""
     
     # API
     API_HOST: str = "0.0.0.0"
@@ -38,6 +43,8 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
+
+
 
 
 settings = Settings()
