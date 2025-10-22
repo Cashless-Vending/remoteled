@@ -9,7 +9,7 @@ import psycopg2
 
 from app.core.config import settings
 from app.core.database import db
-from app.api import devices, orders, authorizations, payments, telemetry, led
+from app.api import devices, orders, authorizations, payments, telemetry
 
 # Create FastAPI app
 app = FastAPI(
@@ -34,7 +34,6 @@ app.include_router(orders.router)
 app.include_router(authorizations.router)
 app.include_router(payments.router)
 app.include_router(telemetry.router)
-app.include_router(led.router)
 
 
 @app.get("/")

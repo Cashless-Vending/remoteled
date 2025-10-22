@@ -6,7 +6,7 @@ HOW TO GET Pi's UUIDs:
 2. Check Pi terminal output for:
    "New Service UUID: 0000XXXX-0000-1000-8000-00805f9b34fb"
    "Generated Deep Link: remoteled://connect/{address}/{service}/{char}/{bleKey}"
-3. Use those values as arguments to this script
+3. Update the values in backend/app/core/config.py or set environment variables
 
 OR subscribe to MQTT topic "qr" to get the deep link
 """
@@ -14,14 +14,27 @@ OR subscribe to MQTT topic "qr" to get the deep link
 import asyncio
 import json
 import sys
+import os
 from bleak import BleakClient, BleakScanner
 
-# Default UUID format from your Pi code
-# You MUST update these with actual values from your Pi
-SERVICE_UUID = "0000ED5C-0000-1000-8000-00805f9b34fb"
-CHAR_UUID = "00005B57-0000-1000-8000-00805f9b34fb"
-BLE_KEY = "6372"
-DEVICE_NAME = "Remote LED"
+# Load BLE configuration from settings
+# Try to import from backend settings first, fallback to environment variables
+try:
+    # Add backend directory to Python path
+    backend_path = os.path.join(os.path.dirname(__file__), '..', '..', 'backend')
+    sys.path.insert(0, backend_path)
+    from app.core.config import settings
+
+    SERVICE_UUID = settings.BLE_SERVICE_UUID
+    CHAR_UUID = settings.BLE_CHAR_UUID
+    BLE_KEY = settings.BLE_KEY
+    DEVICE_NAME = settings.BLE_DEVICE_NAME
+except ImportError:
+    # Fallback to environment variables or defaults
+    SERVICE_UUID = os.getenv("BLE_SERVICE_UUID", "0000ED5C-0000-1000-8000-00805f9b34fb")
+    CHAR_UUID = os.getenv("BLE_CHAR_UUID", "00005B57-0000-1000-8000-00805f9b34fb")
+    BLE_KEY = os.getenv("BLE_KEY", "6372")
+    DEVICE_NAME = os.getenv("BLE_DEVICE_NAME", "Remote LED")
 
 async def find_device():
     """Scan for Pi BLE peripheral by name"""
