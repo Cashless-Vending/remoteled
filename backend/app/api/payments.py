@@ -55,17 +55,28 @@ def create_payment_intent(
 
 
 @router.post("/mock", response_model=dict)
-async def process_mock_payment(
-    mock_req: MockPaymentRequest,
-    cursor: RealDictCursor = Depends(get_db)
-):
+async def process_mock_payment(mock_req: MockPaymentRequest):
     """
     Process a mock payment (for development/testing only)
 
     This simulates successful payment processing and triggers LED feedback.
     Set success=False to simulate payment failure.
     """
-    # Use payment handler which will process payment and trigger LED
-    result = await handle_mock_payment(mock_req, cursor, trigger_led_feedback=True)
-    return result
+    from app.core.led_handler import trigger_led, get_led_color_for_status
+
+    # Determine status and LED color
+    status = "success" if mock_req.success else "failed"
+    led_color = get_led_color_for_status(status)
+    duration = 10  # seconds
+
+    # Trigger LED in background
+    import asyncio
+    asyncio.create_task(trigger_led(led_color, duration))
+
+    return {
+        "status": status,
+        "led_color": led_color,
+        "duration": duration,
+        "message": f"Payment {status} - LED triggered"
+    }
 
