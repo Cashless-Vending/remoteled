@@ -120,7 +120,7 @@ async def trigger_led(color: str, duration: int):
 
 def get_led_color_for_status(status: str) -> str:
     """
-    Map payment status to LED color
+    Map payment status to LED color (using unified config)
 
     Args:
         status: Payment status (success, fail, processing)
@@ -128,10 +128,4 @@ def get_led_color_for_status(status: str) -> str:
     Returns:
         str: LED color (green, red, yellow)
     """
-    led_mapping = {
-        "success": "green",
-        "fail": "red",
-        "failed": "red",  # Support both "fail" and "failed"
-        "processing": "yellow"
-    }
-    return led_mapping.get(status.lower(), "green")
+    return settings.led_color_mapping.get(status.lower(), "green")
