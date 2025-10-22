@@ -41,6 +41,31 @@ class Settings(BaseSettings):
     # Mock Payment
     ENABLE_MOCK_PAYMENT: bool = True
 
+    # LED GPIO Configuration (BCM numbering)
+    # Unified pin mapping for all LED control implementations
+    GPIO_PIN_GREEN: int = 17   # Success
+    GPIO_PIN_YELLOW: int = 19  # Processing
+    GPIO_PIN_RED: int = 27     # Failed
+
+    @property
+    def gpio_pins(self) -> dict:
+        """Get GPIO pin mapping as a dictionary"""
+        return {
+            "green": self.GPIO_PIN_GREEN,
+            "yellow": self.GPIO_PIN_YELLOW,
+            "red": self.GPIO_PIN_RED
+        }
+
+    @property
+    def led_color_mapping(self) -> dict:
+        """Map payment status to LED colors"""
+        return {
+            "success": "green",
+            "failed": "red",
+            "fail": "red",  # Support both forms
+            "processing": "yellow"
+        }
+
     class Config:
         env_file = ".env"
         case_sensitive = False
