@@ -250,6 +250,53 @@ postgresql://localhost:5432/remoteled
 
 **📚 Complete database documentation**: See [`database/README.md`](database/README.md) for detailed schema, queries, and maintenance instructions.
 
+## Testing LED Control (Development)
+
+### Testing Unified LED Service
+
+After implementing the unified LED control (Issue #59), test the new LEDService:
+
+**On Raspberry Pi:**
+```bash
+# 1. Test LEDService standalone (optional)
+cd /usr/local/remoteled/python
+python3 led_service.py
+
+# 2. Run BLE peripheral with LEDService
+python3 code.py
+# Expected output: "[LEDService] Initialized GPIO pins: {'green': 17, 'yellow': 19, 'red': 27}"
+```
+
+**On Backend Machine:**
+```bash
+# 3. Run FastAPI backend
+cd backend
+uvicorn app.main:app --reload
+
+# 4. Test LED triggering via payment endpoint
+# Test GREEN LED (success)
+curl -X POST http://localhost:8000/api/payment/mock \
+  -H "Content-Type: application/json" \
+  -d '{"status": "success"}'
+
+# Test RED LED (failed)
+curl -X POST http://localhost:8000/api/payment/mock \
+  -H "Content-Type: application/json" \
+  -d '{"status": "failed"}'
+
+# Test YELLOW LED (processing)
+curl -X POST http://localhost:8000/api/payment/mock \
+  -H "Content-Type: application/json" \
+  -d '{"status": "processing"}'
+```
+
+**Expected Results:**
+- Pi logs: `[LEDService] GREEN LED (GPIO 17) turned ON (exclusive)`
+- Backend logs: `[BLE] ✓ green LED turned ON`
+- Hardware: Correct LED lights up using unified pin mapping (Green=17, Yellow=19, Red=27)
+
+**Note**: This replaces the old duplicate LED implementations. All LED control now uses the unified LEDService class (`pi/python/led_service.py`) and consistent GPIO pin configuration from `backend/app/core/config.py`.
+
 ## Further reading
 - `docs/ARCHITECTURE.md`
 - `docs/CODEBASE_OVERVIEW.md`
