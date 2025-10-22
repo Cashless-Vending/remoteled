@@ -21,6 +21,16 @@ The project includes everything needed to provision a Raspberry Pi (web kiosk, M
 - `android/RemoteLedBLE/`: Android app (deep link + BLE GATT + QR scanner)
 - `docs/`: Architecture notes and planning
 
+## Python Dependency Management
+
+This project uses [uv](https://github.com/astral-sh/uv) for Python package management with a single `pyproject.toml` at the root.
+
+**Installation:**
+- **On macOS (development)**: `uv sync`
+- **On Raspberry Pi OS**: `uv sync --extra pi`
+
+The Pi-specific dependencies (RPi.GPIO, bluezero, dbus-python) are only installed when using the `--extra pi` flag.
+
 ## Requirements
 - Raspberry Pi with Bluetooth (tested on Raspberry Pi OS Bookworm, Wayfire/LXDE)
 - Internet on first setup (to install packages)
