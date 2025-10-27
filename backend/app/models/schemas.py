@@ -159,6 +159,25 @@ class StripePaymentResponse(BaseModel):
     created_at: int  # Unix timestamp
 
 
+class StripePaymentTriggerRequest(BaseModel):
+    amount_cents: int
+    customer_id: Optional[str] = None  # Optional for testing
+    device_id: str  # Which Pi device to trigger LED on
+    description: Optional[str] = None
+    duration_seconds: Optional[int] = 3  # How long to keep LED on
+
+
+class StripePaymentTriggerResponse(BaseModel):
+    payment_intent_id: str
+    amount_cents: int
+    payment_status: str
+    customer_id: Optional[str]
+    led_triggered: bool
+    led_color: str
+    led_device_id: str
+    created_at: int  # Unix timestamp
+
+
 class StripeOrderRequest(BaseModel):
     customer_id: str
     hardware_id: str

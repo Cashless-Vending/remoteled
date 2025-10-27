@@ -5,10 +5,11 @@ import stripe
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 from psycopg2.extras import RealDictCursor
+from app.core.config import settings
 
 
 # Initialize Stripe
-stripe.api_key = "sk_test_51RvLnsAB4ekTdIMhtkP1rnRTQXhGV3ddiiZMQWeSK4JEKHWED5Z5igrESxWcnrRY6RE8gfkLS06h4EM2kIfV2qGm003uGLXHyN"
+stripe.api_key = settings.STRIPE_SECRET_KEY
 
 
 # ============================================================================
