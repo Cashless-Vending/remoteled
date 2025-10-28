@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.widget.Button;
+import com.example.remoteled.BuildConfig;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -17,9 +18,13 @@ import com.journeyapps.barcodescanner.BarcodeCallback;
 import com.journeyapps.barcodescanner.BarcodeResult;
 import com.journeyapps.barcodescanner.BarcodeView;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 public class QRCodeScannerActivity extends AppCompatActivity {
 
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
+    private static final boolean DEMO_SKIP_QR = false; // ensure real QR flow
     private BarcodeView barcodeView;
     private Button testModeButton;
     
@@ -46,8 +51,8 @@ public class QRCodeScannerActivity extends AppCompatActivity {
         barcodeView = findViewById(R.id.barcode_scanner);
         testModeButton = findViewById(R.id.test_mode_button);
         
-        // Setup test mode button
-        setupTestModeButton();
+        // Hide test button and enforce real flow
+        testModeButton.setVisibility(android.view.View.GONE);
 
         // Check for camera permissions
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
@@ -65,23 +70,45 @@ public class QRCodeScannerActivity extends AppCompatActivity {
      * Setup test mode button for emulator testing
      * Allows testing complete flow without QR scanning
      * 
-     * To disable: In layout XML, set android:visibility="gone" on test_mode_button
+     * Test aid (kept but hidden by default)
      */
     private void setupTestModeButton() {
-        testModeButton.setOnClickListener(v -> showTestDeviceSelector());
+        // Single tap: instantly skip QR and use the first test device
+        testModeButton.setOnClickListener(v -> {
+            String defaultDeviceId = TEST_DEVICES[0];
+            Toast.makeText(this, "Test Mode: skipping QR", Toast.LENGTH_SHORT).show();
+            navigateToProductSelection(defaultDeviceId);
+        });
+        // Long press: show the selector with all test devices
+        testModeButton.setOnLongClickListener(v -> {
+            showTestDeviceSelector();
+            return true;
+        });
     }
     
     /**
      * Show dialog to select a test device
      */
     private void showTestDeviceSelector() {
+        // Debug: Check if arrays are populated
+        Toast.makeText(this, "Devices count: " + TEST_DEVICE_NAMES.length, Toast.LENGTH_SHORT).show();
+        
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("🧪 Select Test Device");
         builder.setMessage("Choose a device to test the complete flow:");
-        builder.setItems(TEST_DEVICE_NAMES, (dialog, which) -> {
+        
+        // Create a simple list of options
+        String[] options = {
+            "Laundry Room A (3 services, ACTIVE)",
+            "Vending Machine #42 (2 services, ACTIVE)", 
+            "Air Compressor (2 services, ACTIVE)",
+            "Massage Chair #7 (2 services, OFFLINE)"
+        };
+        
+        builder.setItems(options, (dialog, which) -> {
             String selectedDeviceId = TEST_DEVICES[which];
             Toast.makeText(this, 
-                "Testing with: " + TEST_DEVICE_NAMES[which], 
+                "Testing with: " + options[which], 
                 Toast.LENGTH_SHORT).show();
             navigateToProductSelection(selectedDeviceId);
         });
@@ -95,16 +122,28 @@ public class QRCodeScannerActivity extends AppCompatActivity {
             public void barcodeResult(BarcodeResult result) {
                 String qrCodeContent = result.getText();
                 
-                // Extract device UUID from QR code
+                // Accept either device UUID QR or remoteled://connect deep link
+                if (qrCodeContent != null && qrCodeContent.startsWith("remoteled://connect/")) {
+                    barcodeView.pause();
+                    try {
+                        android.net.Uri uri = android.net.Uri.parse(qrCodeContent);
+                        // Forward the deep link to MainActivity which performs BLE handshake
+                        Intent intent = new Intent(Intent.ACTION_VIEW, uri, QRCodeScannerActivity.this, MainActivity.class);
+                        startActivity(intent);
+                    } catch (Exception e) {
+                        Toast.makeText(QRCodeScannerActivity.this, "Invalid connect link", Toast.LENGTH_SHORT).show();
+                        barcodeView.resume();
+                    }
+                    return;
+                }
+
+                // Fallback: extract device UUID QR
                 String deviceId = extractDeviceId(qrCodeContent);
-                
                 if (deviceId != null && isValidUUID(deviceId)) {
                     barcodeView.pause();
                     navigateToProductSelection(deviceId);
                 } else {
-                    Toast.makeText(QRCodeScannerActivity.this, 
-                        "Invalid QR Code. Please scan a valid device QR code.", 
-                        Toast.LENGTH_SHORT).show();
+                    Toast.makeText(QRCodeScannerActivity.this, "Invalid QR Code. Please scan a valid code.", Toast.LENGTH_SHORT).show();
                 }
             }
         });
