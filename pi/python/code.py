@@ -120,10 +120,13 @@ def on_mqtt_connect(client, userdata, flags, reason_code, properties):
     print(f"Connected with result code {reason_code}")
     client.subscribe("qr_backend")
 
-def generate_deep_link(adapter_address, service_uuid, char_uuid, bleKey):
-    # Create a deep link URL
+def generate_deep_link(adapter_address, service_uuid, char_uuid, bleKey, device_id=None):
+    # Create a deep link URL including device_id if provided
     global WEB_MESSAGE
-    deep_link = f"remoteled://connect/{adapter_address}/{service_uuid}/{char_uuid}/{bleKey}"
+    if device_id:
+        deep_link = f"remoteled://connect/{adapter_address}/{service_uuid}/{char_uuid}/{bleKey}?deviceId={device_id}"
+    else:
+        deep_link = f"remoteled://connect/{adapter_address}/{service_uuid}/{char_uuid}/{bleKey}"
     WEB_MESSAGE = deep_link
     print(f"Generated Deep Link: {deep_link}")
     publish_qr_code(deep_link)
@@ -163,7 +166,7 @@ def run_ble_peripheral(current_peripheral):
     except Exception as e:
         print(f"Error running BLE peripheral: {e}")
 
-def main(adapter_address):
+def main(adapter_address, device_id=None):
     global current_peripheral
 
     # Generate initial UUIDs for the service and characteristic
@@ -173,7 +176,7 @@ def main(adapter_address):
     current_peripheral = setup_peripheral(adapter_address,False)
 
     # Generate and publish the deep link for QR code
-    generate_deep_link(adapter_address, SHORT_SERVICE_UUID, SHORT_CHAR_UUID, bleKey)
+    generate_deep_link(adapter_address, SHORT_SERVICE_UUID, SHORT_CHAR_UUID, bleKey, device_id)
 
     # Publish the BLE peripheral
     #current_peripheral.publish()

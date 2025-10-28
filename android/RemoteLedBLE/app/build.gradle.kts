@@ -17,6 +17,8 @@ android {
         
         // API Base URL
         buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:8000\"")
+        // Demo flag: when true, skip network and drive mock flow
+        buildConfigField("boolean", "DEMO_MODE", "false")
     }
 
     buildTypes {
