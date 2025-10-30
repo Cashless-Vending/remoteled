@@ -9,7 +9,7 @@ import psycopg2
 
 from app.core.config import settings
 from app.core.database import db
-from app.api import devices, orders, authorizations, payments, telemetry, admin
+from app.api import devices, orders, authorizations, payments, telemetry, admin, auth
 
 # Create FastAPI app
 app = FastAPI(
@@ -29,6 +29,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(auth.router)
 app.include_router(devices.router)
 app.include_router(orders.router)
 app.include_router(authorizations.router)

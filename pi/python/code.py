@@ -1,15 +1,13 @@
 import json
 import random
 import threading
-import RPi.GPIO as GPIO
 import paho.mqtt.client as mqtt
 import time
 from bluezero import adapter, peripheral
+from led_service import LEDService
 
-# GPIO setup
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(17, GPIO.OUT)
-GPIO.output(17, GPIO.LOW)  # Set initial state
+# Initialize LED service
+led_service = LEDService()
 
 # Global state for the LED and BLE characteristics
 led_state = 'off'
@@ -58,7 +56,8 @@ class LEDController:
     def on_disconnect(cls, adapter_address, device_address):
         global current_peripheral
         print(f"Disconnected from BLE device: {device_address}")
-        trigger.set()
+        # Don't trigger exit - disconnects are normal after each request
+        # trigger.set()
 
     @classmethod
     def on_read(cls, options):
@@ -69,19 +68,25 @@ class LEDController:
     def on_write(cls, value, options):
         global led_state
         try:
-            value_str = value.decode("utf-8")  # Decode bytes to string
-            data = json.loads(value_str)  # Parse JSON data
+            value_str = value.decode("utf-8")
+            data = json.loads(value_str)
             command = data.get("command", "").upper()
+            color = data.get("color", "green").lower()
             request_key = data.get("bleKey", "")
+
             if request_key == bleKey:
                 if command == "ON":
-                    led_state = 'on'
-                    GPIO.output(17, GPIO.HIGH)
-                    print("GPIO pin 17 turned ON")
+                    # Use LED service to turn on requested LED (turns off others first)
+                    if led_service.set_color_exclusive(color):
+                        led_state = f'{color}_on'
+                    else:
+                        print(f"Unknown color: {color}")
+
                 elif command == "OFF":
+                    # Use LED service to turn off all LEDs
+                    led_service.turn_off_all()
                     led_state = 'off'
-                    GPIO.output(17, GPIO.LOW)
-                    print("GPIO pin 17 turned OFF")
+
                 elif command == "CONNECT":
                     print("New Device Connected")
                     client.publish("qr","CONNECTED!")
@@ -115,10 +120,13 @@ def on_mqtt_connect(client, userdata, flags, reason_code, properties):
     print(f"Connected with result code {reason_code}")
     client.subscribe("qr_backend")
 
-def generate_deep_link(adapter_address, service_uuid, char_uuid, bleKey):
-    # Create a deep link URL
+def generate_deep_link(adapter_address, service_uuid, char_uuid, bleKey, device_id=None):
+    # Create a deep link URL including device_id if provided
     global WEB_MESSAGE
-    deep_link = f"remoteled://connect/{adapter_address}/{service_uuid}/{char_uuid}/{bleKey}"
+    if device_id:
+        deep_link = f"remoteled://connect/{adapter_address}/{service_uuid}/{char_uuid}/{bleKey}?deviceId={device_id}"
+    else:
+        deep_link = f"remoteled://connect/{adapter_address}/{service_uuid}/{char_uuid}/{bleKey}"
     WEB_MESSAGE = deep_link
     print(f"Generated Deep Link: {deep_link}")
     publish_qr_code(deep_link)
@@ -158,7 +166,7 @@ def run_ble_peripheral(current_peripheral):
     except Exception as e:
         print(f"Error running BLE peripheral: {e}")
 
-def main(adapter_address):
+def main(adapter_address, device_id=None):
     global current_peripheral
 
     # Generate initial UUIDs for the service and characteristic
@@ -168,7 +176,7 @@ def main(adapter_address):
     current_peripheral = setup_peripheral(adapter_address,False)
 
     # Generate and publish the deep link for QR code
-    generate_deep_link(adapter_address, SHORT_SERVICE_UUID, SHORT_CHAR_UUID, bleKey)
+    generate_deep_link(adapter_address, SHORT_SERVICE_UUID, SHORT_CHAR_UUID, bleKey, device_id)
 
     # Publish the BLE peripheral
     #current_peripheral.publish()

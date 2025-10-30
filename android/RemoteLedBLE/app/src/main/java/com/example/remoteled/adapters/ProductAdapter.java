@@ -103,15 +103,11 @@ public class ProductAdapter extends RecyclerView.Adapter<ProductAdapter.ProductV
             if (isSelected) {
                 productCard.setCardBackgroundColor(
                     ContextCompat.getColor(itemView.getContext(), R.color.card_selected));
-                productCard.setStrokeColor(
-                    ContextCompat.getColor(itemView.getContext(), R.color.border_selected));
-                productCard.setStrokeWidth(4);
+                productCard.setCardElevation(12f);
             } else {
                 productCard.setCardBackgroundColor(
                     ContextCompat.getColor(itemView.getContext(), R.color.card_background));
-                productCard.setStrokeColor(
-                    ContextCompat.getColor(itemView.getContext(), R.color.border_default));
-                productCard.setStrokeWidth(0);
+                productCard.setCardElevation(2f);
             }
             
             // Handle click
