@@ -16,8 +16,8 @@ public class RetrofitClient {
     private final ApiService apiService;
     private final Retrofit retrofit;
     
-    // Base URL - can be configured
-    private static String BASE_URL = "http://10.0.2.2:8000/";  // Emulator localhost
+    // Base URL - sourced from BuildConfig
+    private static String BASE_URL = BuildConfig.API_BASE_URL + "/";
     // For physical device on same network, use: "http://YOUR_IP:8000/"
     
     private RetrofitClient() {
@@ -68,6 +68,10 @@ public class RetrofitClient {
         return BASE_URL;
     }
 }
+
+
+
+
 
 
 
