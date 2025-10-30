@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: remoteled-postgres
+    environment:
+      POSTGRES_DB: remoteled
+      POSTGRES_USER: remoteled
+      POSTGRES_PASSWORD: remoteled_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U remoteled"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - remoteled-network
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: remoteled-backend
+    environment:
+      DATABASE_URL: postgresql://remoteled:remoteled_dev_password@postgres:5432/remoteled
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      CORS_ORIGINS: "*"
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - remoteled-network
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend/admin-react
+      dockerfile: Dockerfile
+    container_name: remoteled-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - remoteled-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  remoteled-network:
+    driver: bridge
+
