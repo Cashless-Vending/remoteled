@@ -60,11 +60,11 @@ services:
       start_period: 10s
     restart: unless-stopped
 
-  # Frontend (Nginx serving Admin Console + Kiosk)
+  # Frontend (React Admin + Kiosk)
   frontend:
     build:
       context: .
-      dockerfile: Dockerfile.frontend
+      dockerfile: Dockerfile.frontend.react
     container_name: remoteled-frontend
     environment:
       - NGINX_HOST=localhost
@@ -103,4 +103,3 @@ networks:
 volumes:
   postgres-data:
     name: remoteled-postgres-data
-

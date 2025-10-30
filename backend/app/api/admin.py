@@ -2,13 +2,47 @@
 Admin Console API endpoints
 Dashboard statistics, analytics, and management
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from psycopg2.extras import RealDictCursor
 from typing import List, Optional
 from app.core.database import get_db
+from app.core.validators import validate_uuid
 from datetime import datetime, timedelta
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+# Request models for device and service management
+class DeviceCreateRequest(BaseModel):
+    label: str
+    public_key: str
+    model: Optional[str] = None
+    location: Optional[str] = None
+    gpio_pin: Optional[int] = None
+
+
+class DeviceUpdateRequest(BaseModel):
+    label: Optional[str] = None
+    location: Optional[str] = None
+    gpio_pin: Optional[int] = None
+    status: Optional[str] = None
+
+
+class ServiceCreateRequest(BaseModel):
+    device_id: str
+    type: str  # TRIGGER, FIXED, VARIABLE
+    price_cents: int
+    fixed_minutes: Optional[int] = None
+    minutes_per_25c: Optional[int] = None
+    active: bool = True
+
+
+class ServiceUpdateRequest(BaseModel):
+    price_cents: Optional[int] = None
+    fixed_minutes: Optional[int] = None
+    minutes_per_25c: Optional[int] = None
+    active: Optional[bool] = None
 
 
 @router.get("/stats/overview")
@@ -247,4 +281,235 @@ def get_recent_logs(
     cursor.execute(query, (limit,))
     
     return cursor.fetchall()
+
+
+# ============================================================
+# DEVICE MANAGEMENT ENDPOINTS
+# ============================================================
+
+@router.post("/devices")
+def create_device(
+    device: DeviceCreateRequest,
+    cursor: RealDictCursor = Depends(get_db)
+):
+    """Create a new device"""
+    try:
+        cursor.execute(
+            """
+            INSERT INTO devices (label, public_key, model, location, gpio_pin, status)
+            VALUES (%s, %s, %s, %s, %s, 'ACTIVE')
+            RETURNING id, label, model, location, gpio_pin, status, created_at
+            """,
+            (device.label, device.public_key, device.model, device.location, device.gpio_pin)
+        )
+        new_device = cursor.fetchone()
+        cursor.connection.commit()
+        return new_device
+    except Exception as e:
+        cursor.connection.rollback()
+        raise HTTPException(status_code=400, detail=f"Failed to create device: {str(e)}")
+
+
+@router.put("/devices/{device_id}")
+def update_device(
+    device_id: str,
+    device: DeviceUpdateRequest,
+    cursor: RealDictCursor = Depends(get_db)
+):
+    """Update an existing device"""
+    validate_uuid(device_id, "Device ID")
+    
+    # Build dynamic update query
+    updates = []
+    params = []
+    
+    if device.label is not None:
+        updates.append("label = %s")
+        params.append(device.label)
+    if device.location is not None:
+        updates.append("location = %s")
+        params.append(device.location)
+    if device.gpio_pin is not None:
+        updates.append("gpio_pin = %s")
+        params.append(device.gpio_pin)
+    if device.status is not None:
+        updates.append("status = %s")
+        params.append(device.status)
+    
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    params.append(device_id)
+    
+    try:
+        cursor.execute(
+            f"""
+            UPDATE devices 
+            SET {', '.join(updates)}
+            WHERE id = %s
+            RETURNING id, label, model, location, gpio_pin, status, created_at
+            """,
+            params
+        )
+        updated_device = cursor.fetchone()
+        
+        if not updated_device:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        cursor.connection.commit()
+        return updated_device
+    except HTTPException:
+        raise
+    except Exception as e:
+        cursor.connection.rollback()
+        raise HTTPException(status_code=400, detail=f"Failed to update device: {str(e)}")
+
+
+@router.delete("/devices/{device_id}")
+def delete_device(
+    device_id: str,
+    cursor: RealDictCursor = Depends(get_db)
+):
+    """Delete a device"""
+    validate_uuid(device_id, "Device ID")
+    
+    try:
+        cursor.execute("DELETE FROM devices WHERE id = %s RETURNING id", (device_id,))
+        deleted = cursor.fetchone()
+        
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        cursor.connection.commit()
+        return {"success": True, "message": "Device deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        cursor.connection.rollback()
+        raise HTTPException(status_code=400, detail=f"Failed to delete device: {str(e)}")
+
+
+# ============================================================
+# SERVICE/PRODUCT MANAGEMENT ENDPOINTS
+# ============================================================
+
+@router.post("/services")
+def create_service(
+    service: ServiceCreateRequest,
+    cursor: RealDictCursor = Depends(get_db)
+):
+    """Create a new service/product"""
+    validate_uuid(service.device_id, "Device ID")
+    
+    # Validate service type
+    if service.type not in ['TRIGGER', 'FIXED', 'VARIABLE']:
+        raise HTTPException(status_code=400, detail="Invalid service type")
+    
+    # Type-specific validations
+    if service.type == 'TRIGGER':
+        if service.fixed_minutes is not None or service.minutes_per_25c is not None:
+            raise HTTPException(status_code=400, detail="TRIGGER services should not have duration fields")
+    elif service.type == 'FIXED':
+        if service.fixed_minutes is None:
+            raise HTTPException(status_code=400, detail="FIXED services require fixed_minutes")
+        if service.minutes_per_25c is not None:
+            raise HTTPException(status_code=400, detail="FIXED services should not have minutes_per_25c")
+    elif service.type == 'VARIABLE':
+        if service.minutes_per_25c is None:
+            raise HTTPException(status_code=400, detail="VARIABLE services require minutes_per_25c")
+    
+    try:
+        cursor.execute(
+            """
+            INSERT INTO services (device_id, type, price_cents, fixed_minutes, minutes_per_25c, active)
+            VALUES (%s, %s::service_type, %s, %s, %s, %s)
+            RETURNING id, device_id, type, price_cents, fixed_minutes, minutes_per_25c, active, created_at
+            """,
+            (service.device_id, service.type, service.price_cents, service.fixed_minutes, service.minutes_per_25c, service.active)
+        )
+        new_service = cursor.fetchone()
+        cursor.connection.commit()
+        return new_service
+    except Exception as e:
+        cursor.connection.rollback()
+        raise HTTPException(status_code=400, detail=f"Failed to create service: {str(e)}")
+
+
+@router.put("/services/{service_id}")
+def update_service(
+    service_id: str,
+    service: ServiceUpdateRequest,
+    cursor: RealDictCursor = Depends(get_db)
+):
+    """Update an existing service/product"""
+    validate_uuid(service_id, "Service ID")
+    
+    # Build dynamic update query
+    updates = []
+    params = []
+    
+    if service.price_cents is not None:
+        updates.append("price_cents = %s")
+        params.append(service.price_cents)
+    if service.fixed_minutes is not None:
+        updates.append("fixed_minutes = %s")
+        params.append(service.fixed_minutes)
+    if service.minutes_per_25c is not None:
+        updates.append("minutes_per_25c = %s")
+        params.append(service.minutes_per_25c)
+    if service.active is not None:
+        updates.append("active = %s")
+        params.append(service.active)
+    
+    if not updates:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    params.append(service_id)
+    
+    try:
+        cursor.execute(
+            f"""
+            UPDATE services 
+            SET {', '.join(updates)}
+            WHERE id = %s
+            RETURNING id, device_id, type, price_cents, fixed_minutes, minutes_per_25c, active, created_at
+            """,
+            params
+        )
+        updated_service = cursor.fetchone()
+        
+        if not updated_service:
+            raise HTTPException(status_code=404, detail="Service not found")
+        
+        cursor.connection.commit()
+        return updated_service
+    except HTTPException:
+        raise
+    except Exception as e:
+        cursor.connection.rollback()
+        raise HTTPException(status_code=400, detail=f"Failed to update service: {str(e)}")
+
+
+@router.delete("/services/{service_id}")
+def delete_service(
+    service_id: str,
+    cursor: RealDictCursor = Depends(get_db)
+):
+    """Delete a service/product"""
+    validate_uuid(service_id, "Service ID")
+    
+    try:
+        cursor.execute("DELETE FROM services WHERE id = %s RETURNING id", (service_id,))
+        deleted = cursor.fetchone()
+        
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Service not found")
+        
+        cursor.connection.commit()
+        return {"success": True, "message": "Service deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        cursor.connection.rollback()
+        raise HTTPException(status_code=400, detail=f"Failed to delete service: {str(e)}")
 
