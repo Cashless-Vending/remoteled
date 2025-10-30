@@ -131,22 +131,51 @@ class LogResponse(BaseModel):
     created_at: datetime
 
 
-# Payment Models
-class PaymentIntentRequest(BaseModel):
-    order_id: str
-    amount_cents: int
+# Stripe Payment Models
+class CustomerRequest(BaseModel):
+    email: str
+    name: str
 
 
-class PaymentIntentResponse(BaseModel):
-    order_id: str
+class CustomerResponse(BaseModel):
+    customer_id: str
+    email: str
+    name: str
+    created_at: int  # Unix timestamp from Stripe
+
+
+class StripePaymentRequest(BaseModel):
     amount_cents: int
-    payment_method: str
+    customer_id: str
+    description: Optional[str] = None
+    metadata: Optional[dict] = None
+
+
+class StripePaymentResponse(BaseModel):
+    payment_intent_id: str
+    amount_cents: int
     status: str
+    customer_id: str
+    created_at: int  # Unix timestamp
 
 
-class MockPaymentRequest(BaseModel):
+class StripeOrderRequest(BaseModel):
+    customer_id: str
+    hardware_id: str
+    service_type: str
+    amount_cents: int
+
+
+class StripeOrderResponse(BaseModel):
     order_id: str
-    success: bool = True
+    customer_id: str
+    hardware_id: str
+    service_type: str
+    amount_cents: int
+    payment_intent_id: Optional[str]
+    status: str
+    created_at: datetime
+    updated_at: datetime
 
 
 # Error Response

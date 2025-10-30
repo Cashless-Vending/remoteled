@@ -43,8 +43,9 @@ psql remoteled -c "SELECT COUNT(*) FROM devices;"
 # Development mode with auto-reload
 python -m app.main
 
-# Or use uvicorn directly
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+# Or use uvicorn with uv (from backend directory)
+cd backend
+uv run --no-project uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### 5. Access API Documentation
