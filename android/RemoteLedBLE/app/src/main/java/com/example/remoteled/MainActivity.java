@@ -57,6 +57,7 @@ public class MainActivity extends AppCompatActivity {
     ImageView toggleImage;
     private boolean isON = false;
     String bleKey;
+    String scannedDeviceId; // optional from QR deep link
     FloatingActionButton disconnectButton;
 
     @Override
@@ -224,6 +225,11 @@ public class MainActivity extends AppCompatActivity {
                 String serviceUUID = "0000"+data.getPathSegments().get(1)+"-0000-1000-8000-00805f9b34fb";
                 String characteristicUUID = "0000"+data.getPathSegments().get(2)+"-0000-1000-8000-00805f9b34fb";
                 bleKey = data.getPathSegments().get(3);
+                // Optional deviceId query parameter from QR
+                String qpDeviceId = data.getQueryParameter("deviceId");
+                if (qpDeviceId != null && !qpDeviceId.isEmpty()) {
+                    scannedDeviceId = qpDeviceId;
+                }
 
                 // Connect to the BLE device
                 connectToDevice(macAddress, UUID.fromString(serviceUUID), UUID.fromString(characteristicUUID));
@@ -286,7 +292,16 @@ public class MainActivity extends AppCompatActivity {
                         characteristic = service.getCharacteristic(characteristicUUID);
                         Log.i(TAG, "Characteristic found.");
                         updateConnectionStatus("Characteristic found");
-                        enableControlButtons(true); // Enable the ON/OFF buttons once connected
+                        enableControlButtons(true); // handshake complete
+                        // If we came from QR and have a deviceId, navigate into app flow
+                        if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
+                            runOnUiThread(() -> {
+                                Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
+                                i.putExtra("DEVICE_ID", scannedDeviceId);
+                                startActivity(i);
+                                finish();
+                            });
+                        }
                         if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
                             // TODO: Consider calling
                             //    ActivityCompat#requestPermissions

@@ -36,8 +36,10 @@ var options = {
 };
 
 // Function to generate deep link
-function generateDeepLink(address, serviceUuid, charUuid, bleKey) {
-    WEB_MESSAGE = `remoteled://connect/${address}/${serviceUuid}/${charUuid}/${bleKey}`;
+function generateDeepLink(address, serviceUuid, charUuid, bleKey, deviceId) {
+    WEB_MESSAGE = deviceId
+        ? `remoteled://connect/${address}/${serviceUuid}/${charUuid}/${bleKey}?deviceId=${deviceId}`
+        : `remoteled://connect/${address}/${serviceUuid}/${charUuid}/${bleKey}`;
     return WEB_MESSAGE;
 }
 
@@ -152,7 +154,7 @@ BleManager.create(transport, options, function(err, manager) {
         .then(mac => {
             console.log(`Bluetooth MAC Address: ${mac}`);
             const bleAddress = mac;  // BLE address from connection
-            const deepLink = generateDeepLink(bleAddress, bleShortServiceUuid, bleShortCharUuid,bleKey);  // Generate deep link
+            const deepLink = generateDeepLink(bleAddress, bleShortServiceUuid, bleShortCharUuid, bleKey, process.env.DEVICE_ID);  // Generate deep link
             console.log('Generated Deep Link:', deepLink);
             mqtt_client.publish("qr", deepLink);
         })
