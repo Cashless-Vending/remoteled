@@ -2,7 +2,7 @@
 Admin Console API endpoints
 Dashboard statistics, analytics, and management
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from psycopg2.extras import RealDictCursor
 from typing import List, Optional
 from pydantic import BaseModel
@@ -11,6 +11,7 @@ from app.core.auth import get_current_user
 from app.core.admin_logger import log_admin_action
 from app.core.validators import validate_uuid
 from datetime import datetime, timedelta
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 

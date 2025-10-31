@@ -21,6 +21,16 @@ The project includes everything needed to provision a Raspberry Pi (web kiosk, M
 - `android/RemoteLedBLE/`: Android app (deep link + BLE GATT + QR scanner)
 - `docs/`: Architecture notes and planning
 
+## Python Dependency Management
+
+This project uses [uv](https://github.com/astral-sh/uv) for Python package management with a single `pyproject.toml` at the root.
+
+**Installation:**
+- **On macOS (development)**: `uv sync`
+- **On Raspberry Pi OS**: `uv sync --extra pi`
+
+The Pi-specific dependencies (RPi.GPIO, bluezero, dbus-python) are only installed when using the `--extra pi` flag.
+
 ## Requirements
 - Raspberry Pi with Bluetooth (tested on Raspberry Pi OS Bookworm, Wayfire/LXDE)
 - Internet on first setup (to install packages)
@@ -239,6 +249,78 @@ postgresql://localhost:5432/remoteled
 ```
 
 **📚 Complete database documentation**: See [`database/README.md`](database/README.md) for detailed schema, queries, and maintenance instructions.
+
+## Testing
+
+### Quick Testing Guide
+
+**1. Install Dependencies**
+
+macOS (development):
+```bash
+uv sync
+```
+
+Raspberry Pi:
+```bash
+uv sync --extra pi
+```
+
+**2. Start Pi BLE Peripheral**
+
+On Raspberry Pi:
+```bash
+cd pi/python
+python3 code.py
+```
+
+Note the UUIDs printed in the terminal:
+```
+Service UUID: 0000XXXX-0000-1000-8000-00805f9b34fb
+Characteristic UUID: 0000YYYY-0000-1000-8000-00805f9b34fb
+bleKey: ZZZZ
+```
+
+**3. Start FastAPI Backend**
+
+On your development machine:
+```bash
+cd backend
+uv run --no-project uvicorn app.main:app --reload
+```
+
+Backend will start on `http://localhost:8000`
+
+**4. Test LED Control via Payment API**
+
+```bash
+# Test GREEN LED (payment success)
+curl -X POST http://localhost:8000/api/payment/mock \
+  -H "Content-Type: application/json" \
+  -d '{"status": "success"}'
+
+# Test RED LED (payment failed)
+curl -X POST http://localhost:8000/api/payment/mock \
+  -H "Content-Type: application/json" \
+  -d '{"status": "failed"}'
+
+# Test YELLOW LED (payment processing)
+curl -X POST http://localhost:8000/api/payment/mock \
+  -H "Content-Type: application/json" \
+  -d '{"status": "processing"}'
+```
+
+**Expected Results:**
+- Pi logs: `[LEDService] GREEN LED (GPIO 17) turned ON (exclusive)`
+- Backend logs: `[BLE] ✓ green LED turned ON`
+- Hardware: Correct LED lights up (Green=GPIO17, Yellow=GPIO19, Red=GPIO27)
+
+**Troubleshooting:**
+- "Device not found": Ensure Pi is running `code.py` and Bluetooth is enabled
+- "Module not found" errors: Run `uv sync` (or `uv sync --extra pi` on Pi)
+- Database connection errors: Ensure PostgreSQL is running and database is created
+
+📚 **Detailed API documentation**: See [`backend/README.md`](backend/README.md) for complete API reference
 
 ## Further reading
 - `docs/ARCHITECTURE.md`
