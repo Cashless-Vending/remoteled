@@ -1,139 +1,83 @@
 """
-Authentication utilities for RemoteLED Admin Console
-Handles JWT tokens, password hashing, and user verification
+Authentication utilities for JWT tokens and password hashing
 """
 from datetime import datetime, timedelta
 from typing import Optional
-from fastapi import Depends, HTTPException, status, Cookie
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from psycopg2.extras import RealDictCursor
 from app.core.database import get_db
-from pydantic import BaseModel
 
 # Security configuration
-SECRET_KEY = "your-secret-key-change-in-production"  # TODO: Move to env variable
+SECRET_KEY = "your-secret-key-change-in-production"  # TODO: Move to environment variable
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
-REFRESH_TOKEN_EXPIRE_DAYS = 7
+ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# Bearer token security
+# HTTP Bearer token scheme
 security = HTTPBearer()
 
 
-class TokenData(BaseModel):
-    """Token payload data"""
-    email: Optional[str] = None
-    user_id: Optional[str] = None
-
-
-class User(BaseModel):
-    """User model for authentication"""
-    id: str
-    email: str
-    role: str
+def hash_password(password: str) -> str:
+    """Hash a password using bcrypt"""
+    password_bytes = password.encode('utf-8')
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password_bytes, salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
-    return pwd_context.verify(plain_password, hashed_password)
+    password_bytes = plain_password.encode('utf-8')
+    hashed_bytes = hashed_password.encode('utf-8')
+    return bcrypt.checkpw(password_bytes, hashed_bytes)
 
 
-def get_password_hash(password: str) -> str:
-    """Hash a password for storing"""
-    return pwd_context.hash(password)
+def create_access_token(email: str, admin_id: str) -> str:
+    """Create a new JWT access token"""
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode = {
+        "sub": email,
+        "id": admin_id,
+        "exp": expire
+    }
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token"""
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.utcnow() + expires_delta
-    else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    cursor: RealDictCursor = Depends(get_db)
+) -> dict:
+    """Get the current authenticated user from JWT token"""
+    token = credentials.credentials
     
-    to_encode.update({"exp": expire, "type": "access"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-
-def create_refresh_token(data: dict) -> str:
-    """Create a JWT refresh token"""
-    to_encode = data.copy()
-    expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    to_encode.update({"exp": expire, "type": "refresh"})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
-
-
-def decode_token(token: str) -> TokenData:
-    """Decode and verify a JWT token"""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
-        user_id: str = payload.get("user_id")
+        admin_id: str = payload.get("id")
         
-        if email is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid authentication credentials",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        token_data = TokenData(email=email, user_id=user_id)
-        return token_data
+        if email is None or admin_id is None:
+            raise credentials_exception
+            
     except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-    cursor: RealDictCursor = Depends(get_db)
-) -> User:
-    """
-    Dependency to get the current authenticated user from JWT token
-    Use this to protect endpoints: user = Depends(get_current_user)
-    """
-    token = credentials.credentials
-    token_data = decode_token(token)
+        raise credentials_exception
     
-    # Fetch user from database
+    # Verify user exists in database
     cursor.execute(
-        "SELECT id, email, role FROM admins WHERE email = %s",
-        (token_data.email,)
+        "SELECT id, email, role FROM admins WHERE id = %s AND email = %s",
+        (admin_id, email)
     )
-    user_data = cursor.fetchone()
+    user = cursor.fetchone()
     
-    if user_data is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="User not found",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+    if user is None:
+        raise credentials_exception
     
-    return User(**user_data)
-
-
-async def get_optional_user(
-    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
-    cursor: RealDictCursor = Depends(get_db)
-) -> Optional[User]:
-    """
-    Dependency to optionally get the current user (doesn't raise if not authenticated)
-    """
-    if not credentials:
-        return None
-    
-    try:
-        return await get_current_user(credentials, cursor)
-    except HTTPException:
-        return None
-
+    return dict(user)

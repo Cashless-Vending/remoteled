@@ -11,10 +11,11 @@ TRUNCATE TABLE logs, authorizations, orders, services, devices, admins CASCADE;
 -- ============================================================
 -- ADMINS
 -- ============================================================
-INSERT INTO admins (id, email, role, created_at) VALUES
-('a1111111-1111-1111-1111-111111111111', 'admin@remoteled.com', 'super_admin', NOW() - INTERVAL '90 days'),
-('a2222222-2222-2222-2222-222222222222', 'owner@laundromat.com', 'device_owner', NOW() - INTERVAL '60 days'),
-('a3333333-3333-3333-3333-333333333333', 'manager@vending.com', 'manager', NOW() - INTERVAL '30 days');
+-- Note: password_hash is bcrypt hash of 'password123' for all test users
+INSERT INTO admins (id, email, password_hash, role, created_at) VALUES
+('a1111111-1111-1111-1111-111111111111', 'admin@remoteled.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5uyT5z.qNqI5i', 'super_admin', NOW() - INTERVAL '90 days'),
+('a2222222-2222-2222-2222-222222222222', 'owner@laundromat.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5uyT5z.qNqI5i', 'device_owner', NOW() - INTERVAL '60 days'),
+('a3333333-3333-3333-3333-333333333333', 'manager@vending.com', '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5uyT5z.qNqI5i', 'manager', NOW() - INTERVAL '30 days');
 
 -- ============================================================
 -- DEVICES

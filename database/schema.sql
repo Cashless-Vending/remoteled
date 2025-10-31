@@ -5,6 +5,7 @@
 -- ============================================================
 -- DROP EXISTING TABLES (for clean setup)
 -- ============================================================
+DROP TABLE IF EXISTS admin_logs CASCADE;
 DROP TABLE IF EXISTS logs CASCADE;
 DROP TABLE IF EXISTS authorizations CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
@@ -209,6 +210,27 @@ CREATE INDEX idx_logs_direction ON logs(direction);
 CREATE INDEX idx_logs_ok ON logs(ok);
 CREATE INDEX idx_logs_created_at ON logs(created_at DESC);
 CREATE INDEX idx_logs_device_created ON logs(device_id, created_at DESC);
+
+-- ============================================================
+-- ADMIN LOGS TABLE (Admin Action Audit Trail)
+-- ============================================================
+CREATE TABLE admin_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    admin_id UUID REFERENCES admins(id) ON DELETE SET NULL,
+    admin_email VARCHAR(255),
+    action VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(50),
+    entity_id UUID,
+    details TEXT,
+    ip_address VARCHAR(45),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indexes for audit queries
+CREATE INDEX idx_admin_logs_admin_id ON admin_logs(admin_id);
+CREATE INDEX idx_admin_logs_action ON admin_logs(action);
+CREATE INDEX idx_admin_logs_created_at ON admin_logs(created_at DESC);
+CREATE INDEX idx_admin_logs_entity ON admin_logs(entity_type, entity_id);
 
 -- ============================================================
 -- VIEWS (for common queries)

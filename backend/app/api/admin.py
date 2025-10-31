@@ -5,7 +5,10 @@ Dashboard statistics, analytics, and management
 from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from psycopg2.extras import RealDictCursor
 from typing import List, Optional
+from pydantic import BaseModel
 from app.core.database import get_db
+from app.core.auth import get_current_user
+from app.core.admin_logger import log_admin_action
 from app.core.validators import validate_uuid
 from datetime import datetime, timedelta
 from pydantic import BaseModel
@@ -24,6 +27,7 @@ class DeviceCreateRequest(BaseModel):
 
 class DeviceUpdateRequest(BaseModel):
     label: Optional[str] = None
+    model: Optional[str] = None
     location: Optional[str] = None
     gpio_pin: Optional[int] = None
     status: Optional[str] = None
@@ -283,6 +287,29 @@ def get_recent_logs(
     return cursor.fetchall()
 
 
+@router.get("/logs/admin-actions")
+def get_admin_action_logs(
+    limit: int = Query(100, ge=1, le=500),
+    cursor: RealDictCursor = Depends(get_db)
+):
+    """Get recent admin action logs"""
+    cursor.execute("""
+        SELECT 
+            id,
+            admin_email,
+            action,
+            entity_type,
+            entity_id,
+            details,
+            created_at
+        FROM admin_logs
+        ORDER BY created_at DESC
+        LIMIT %s
+    """, (limit,))
+    
+    return cursor.fetchall()
+
+
 # ============================================================
 # DEVICE MANAGEMENT ENDPOINTS
 # ============================================================
@@ -290,6 +317,7 @@ def get_recent_logs(
 @router.post("/devices")
 def create_device(
     device: DeviceCreateRequest,
+    current_user: dict = Depends(get_current_user),
     cursor: RealDictCursor = Depends(get_db)
 ):
     """Create a new device"""
@@ -304,6 +332,17 @@ def create_device(
         )
         new_device = cursor.fetchone()
         cursor.connection.commit()
+        
+        # Log the action
+        log_admin_action(
+            admin_email=current_user['email'],
+            action='CREATE_DEVICE',
+            entity_type='device',
+            entity_id=new_device['id'],
+            details=f"Created device: {device.label}",
+            admin_id=current_user['id']
+        )
+        
         return new_device
     except Exception as e:
         cursor.connection.rollback()
@@ -314,6 +353,7 @@ def create_device(
 def update_device(
     device_id: str,
     device: DeviceUpdateRequest,
+    current_user: dict = Depends(get_current_user),
     cursor: RealDictCursor = Depends(get_db)
 ):
     """Update an existing device"""
@@ -326,6 +366,9 @@ def update_device(
     if device.label is not None:
         updates.append("label = %s")
         params.append(device.label)
+    if device.model is not None:
+        updates.append("model = %s")
+        params.append(device.model)
     if device.location is not None:
         updates.append("location = %s")
         params.append(device.location)
@@ -357,6 +400,17 @@ def update_device(
             raise HTTPException(status_code=404, detail="Device not found")
         
         cursor.connection.commit()
+        
+        # Log the action
+        log_admin_action(
+            admin_email=current_user['email'],
+            action='UPDATE_DEVICE',
+            entity_type='device',
+            entity_id=device_id,
+            details=f"Updated device: {updated_device['label']}",
+            admin_id=current_user['id']
+        )
+        
         return updated_device
     except HTTPException:
         raise
@@ -368,19 +422,32 @@ def update_device(
 @router.delete("/devices/{device_id}")
 def delete_device(
     device_id: str,
+    current_user: dict = Depends(get_current_user),
     cursor: RealDictCursor = Depends(get_db)
 ):
-    """Delete a device"""
+    """Delete a device (and cascade to services)"""
     validate_uuid(device_id, "Device ID")
     
     try:
-        cursor.execute("DELETE FROM devices WHERE id = %s RETURNING id", (device_id,))
-        deleted = cursor.fetchone()
+        cursor.execute("SELECT label FROM devices WHERE id = %s", (device_id,))
+        device = cursor.fetchone()
         
-        if not deleted:
+        if not device:
             raise HTTPException(status_code=404, detail="Device not found")
         
+        cursor.execute("DELETE FROM devices WHERE id = %s", (device_id,))
         cursor.connection.commit()
+        
+        # Log the action
+        log_admin_action(
+            admin_email=current_user['email'],
+            action='DELETE_DEVICE',
+            entity_type='device',
+            entity_id=device_id,
+            details=f"Deleted device: {device['label']}",
+            admin_id=current_user['id']
+        )
+        
         return {"success": True, "message": "Device deleted successfully"}
     except HTTPException:
         raise
@@ -396,6 +463,7 @@ def delete_device(
 @router.post("/services")
 def create_service(
     service: ServiceCreateRequest,
+    current_user: dict = Depends(get_current_user),
     cursor: RealDictCursor = Depends(get_db)
 ):
     """Create a new service/product"""
@@ -429,6 +497,17 @@ def create_service(
         )
         new_service = cursor.fetchone()
         cursor.connection.commit()
+        
+        # Log the action
+        log_admin_action(
+            admin_email=current_user['email'],
+            action='CREATE_SERVICE',
+            entity_type='service',
+            entity_id=new_service['id'],
+            details=f"Created {service.type} service for device {service.device_id}",
+            admin_id=current_user['id']
+        )
+        
         return new_service
     except Exception as e:
         cursor.connection.rollback()
@@ -439,6 +518,7 @@ def create_service(
 def update_service(
     service_id: str,
     service: ServiceUpdateRequest,
+    current_user: dict = Depends(get_current_user),
     cursor: RealDictCursor = Depends(get_db)
 ):
     """Update an existing service/product"""
@@ -482,6 +562,17 @@ def update_service(
             raise HTTPException(status_code=404, detail="Service not found")
         
         cursor.connection.commit()
+        
+        # Log the action
+        log_admin_action(
+            admin_email=current_user['email'],
+            action='UPDATE_SERVICE',
+            entity_type='service',
+            entity_id=service_id,
+            details=f"Updated service {service_id}",
+            admin_id=current_user['id']
+        )
+        
         return updated_service
     except HTTPException:
         raise
@@ -493,23 +584,47 @@ def update_service(
 @router.delete("/services/{service_id}")
 def delete_service(
     service_id: str,
+    current_user: dict = Depends(get_current_user),
     cursor: RealDictCursor = Depends(get_db)
 ):
     """Delete a service/product"""
     validate_uuid(service_id, "Service ID")
     
     try:
-        cursor.execute("DELETE FROM services WHERE id = %s RETURNING id", (service_id,))
-        deleted = cursor.fetchone()
+        cursor.execute("SELECT type FROM services WHERE id = %s", (service_id,))
+        service = cursor.fetchone()
         
-        if not deleted:
+        if not service:
             raise HTTPException(status_code=404, detail="Service not found")
         
+        # Check if any orders reference this service
+        cursor.execute("SELECT COUNT(*) as count FROM orders WHERE product_id = %s", (service_id,))
+        order_count = cursor.fetchone()['count']
+        
+        if order_count > 0:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Cannot delete service: {order_count} order(s) still reference this product. Please delete or update those orders first."
+            )
+        
+        cursor.execute("DELETE FROM services WHERE id = %s", (service_id,))
         cursor.connection.commit()
+        
+        # Log the action
+        log_admin_action(
+            admin_email=current_user['email'],
+            action='DELETE_SERVICE',
+            entity_type='service',
+            entity_id=service_id,
+            details=f"Deleted {service['type']} service",
+            admin_id=current_user['id']
+        )
+        
         return {"success": True, "message": "Service deleted successfully"}
     except HTTPException:
         raise
     except Exception as e:
         cursor.connection.rollback()
         raise HTTPException(status_code=400, detail=f"Failed to delete service: {str(e)}")
+
 
