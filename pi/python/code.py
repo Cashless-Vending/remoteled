@@ -1,7 +1,6 @@
 import json
 import random
 import threading
-import paho.mqtt.client as mqtt
 import time
 from bluezero import adapter, peripheral
 from led_service import LEDService
@@ -11,7 +10,6 @@ led_service = LEDService()
 
 # Global state for the LED and BLE characteristics
 led_state = 'off'
-mqtt_topic = "qr"
 trigger = threading.Event()
 SERVICE_UUID = None
 CHAR_UUID = None
@@ -21,6 +19,7 @@ bleKey = None
 current_peripheral = None  # Reference to track the current peripheral object
 led_peripheral = None
 WEB_MESSAGE = "Loading Bluetooth..."
+QR_DATA_FILE = '/var/www/html/qr_data.json'
 
 
 # Helper function to generate new random UUIDs
@@ -36,10 +35,17 @@ def generate_new_uuids(just_char=True):
     print(f"New Service UUID: {SERVICE_UUID}, Characteristic UUID: {CHAR_UUID}")
 
 
-# MQTT client to publish QR code
+# Write QR data to file for web page to read
 def publish_qr_code(deep_link):
-    client.publish(mqtt_topic, deep_link)
-    print(f"Deep link published: {deep_link}")
+    global WEB_MESSAGE
+    WEB_MESSAGE = deep_link
+    data = {'message': deep_link, 'timestamp': int(time.time() * 1000)}
+    try:
+        with open(QR_DATA_FILE, 'w') as f:
+            json.dump(data, f)
+        print(f"Deep link written to file: {deep_link}")
+    except Exception as e:
+        print(f"Error writing QR data file: {e}")
 
 
 class LEDController:
@@ -48,8 +54,7 @@ class LEDController:
     @classmethod
     def on_connect(cls, ble_device):
         global WEB_MESSAGE
-        client.publish("qr","CONNECTED!")
-        WEB_MESSAGE = "CONNECTED!"
+        publish_qr_code("CONNECTED!")
         print("Connected to BLE device: ", ble_device)
 
     @classmethod
@@ -89,7 +94,7 @@ class LEDController:
 
                 elif command == "CONNECT":
                     print("New Device Connected")
-                    client.publish("qr","CONNECTED!")
+                    publish_qr_code("CONNECTED!")
                 else:
                     print("Unknown command received")
 
@@ -111,14 +116,6 @@ class LEDController:
     def update_tx(cls, value):
         if cls.tx_obj:
             cls.tx_obj.set_value(value)
-
-def on_mqtt_message(client, userdata, msg):
-    global WEB_MESSAGE
-    publish_qr_code(WEB_MESSAGE)
-
-def on_mqtt_connect(client, userdata, flags, reason_code, properties):
-    print(f"Connected with result code {reason_code}")
-    client.subscribe("qr_backend")
 
 def generate_deep_link(adapter_address, service_uuid, char_uuid, bleKey, device_id=None):
     # Create a deep link URL including device_id if provided
@@ -192,14 +189,6 @@ def main(adapter_address, device_id=None):
     except KeyboardInterrupt:
         print("Stopping BLE Server")
 
-
-# MQTT Setup
-broker_address = "localhost"
-client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2)
-client.on_connect = on_mqtt_connect
-client.on_message = on_mqtt_message
-client.connect(broker_address)
-client.loop_start()
 
 if __name__ == '__main__':
     main(list(adapter.Adapter.available())[0].address)

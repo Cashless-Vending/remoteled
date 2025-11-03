@@ -7,22 +7,24 @@ const AttErrors = NodeBleHost.AttErrors;
 const { v4: uuidv4 } = require('uuid');  // For generating random UUIDs
 const { exec } = require('child_process');
 const Gpio = require('onoff').Gpio;
-const mqtt = require("mqtt");
-const mqtt_client = mqtt.connect("mqtt://localhost");
+const fs = require('fs');
 
 //cat /sys/kernel/debug/gpio
-const led = new Gpio(529, 'out'); 
+const led = new Gpio(529, 'out');
 
 var WEB_MESSAGE = "Setting up BLE..."
+const QR_DATA_FILE = '/var/www/html/qr_data.json';
 
-mqtt_client.on("connect", () => {
-    console.log("Connected MQTT");
-    mqtt_client.subscribe("qr_backend");
-});
-
-mqtt_client.on("message", (topic, message) => {
-    mqtt_client.publish("qr",WEB_MESSAGE);
-  });
+// Write QR data to file for web page to read
+function updateQRData(message) {
+    WEB_MESSAGE = message;
+    const data = { message: message, timestamp: Date.now() };
+    try {
+        fs.writeFileSync(QR_DATA_FILE, JSON.stringify(data));
+    } catch (err) {
+        console.error('Error writing QR data file:', err);
+    }
+}
 
 const deviceName = 'MyDevice';
 var service = [];
@@ -37,10 +39,11 @@ var options = {
 
 // Function to generate deep link
 function generateDeepLink(address, serviceUuid, charUuid, bleKey, deviceId) {
-    WEB_MESSAGE = deviceId
+    const deepLink = deviceId
         ? `remoteled://connect/${address}/${serviceUuid}/${charUuid}/${bleKey}?deviceId=${deviceId}`
         : `remoteled://connect/${address}/${serviceUuid}/${charUuid}/${bleKey}`;
-    return WEB_MESSAGE;
+    updateQRData(deepLink);
+    return deepLink;
 }
 
 function generate_16bit_uuid() {
@@ -128,8 +131,7 @@ BleManager.create(transport, options, function(err, manager) {
                                     led.writeSync(0); // Turn GPIO pin off (0)
                                     console.log("GPIO is OFF");
                                 } else if (request.command === "CONNECT") {
-                                    mqtt_client.publish("qr", "CONNECTED!");
-                                    WEB_MESSAGE = "CONNECTED!";
+                                    updateQRData("CONNECTED!");
                                     console.log("Varified Client Connected");
                                 } else {
                                     console.log("Invalid command! Use 'ON' or 'OFF'");
@@ -156,7 +158,6 @@ BleManager.create(transport, options, function(err, manager) {
             const bleAddress = mac;  // BLE address from connection
             const deepLink = generateDeepLink(bleAddress, bleShortServiceUuid, bleShortCharUuid, bleKey, process.env.DEVICE_ID);  // Generate deep link
             console.log('Generated Deep Link:', deepLink);
-            mqtt_client.publish("qr", deepLink);
         })
         .catch(err => {
             console.error(err);
@@ -166,7 +167,6 @@ BleManager.create(transport, options, function(err, manager) {
     function connectCallback(status, conn) {
         //console.log('Connection established!', conn);
         console.log('Connection established!');
-        //mqtt_client.publish("qr", "CONNECTED!");
         if (status != HciErrors.SUCCESS) {
             setTimeout(startAdv, 10000);  // Retry advertising after failure
             return;

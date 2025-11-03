@@ -1,23 +1,23 @@
 # RemoteLED
 
-Control a physical LED over Bluetooth Low Energy using a Raspberry Pi and an Android app. The Pi displays a QR code on a kiosk page; scanning it deep‑links the Android app, which connects to the Pi’s BLE peripheral and toggles a GPIO pin using a short per‑session key.
+Control a physical LED over Bluetooth Low Energy using a Raspberry Pi and an Android app. The Pi displays a QR code on a kiosk page; scanning it deep‑links the Android app, which connects to the Pi's BLE peripheral and toggles a GPIO pin using a short per‑session key.
 
-The project includes everything needed to provision a Raspberry Pi (web kiosk, MQTT broker, BLE peripheral in Node or Python, systemd services) and the Android client app (QR scanner + BLE GATT client).
+The project includes everything needed to provision a Raspberry Pi (web kiosk, BLE peripheral in Node or Python, systemd services) and the Android client app (QR scanner + BLE GATT client).
 
 > Important: Android emulators do not support real Bluetooth LE. Use a physical Android device for end‑to‑end testing.
 
 ## Overview
-- Architecture: Pi runs a BLE peripheral and publishes a deep link to MQTT; a local web page renders the QR. Android scans the QR or opens the deep link directly, connects via BLE, and writes commands to toggle a GPIO.
+- Architecture: Pi runs a BLE peripheral and displays a deep link QR code on a local web page. Android scans the QR or opens the deep link directly, connects via BLE, and writes commands to toggle a GPIO.
 - Deep link format: `remoteled://connect/<MAC>/<svc16>/<char16>/<bleKey>`.
 - BLE stacks on Pi: Node.js or Python (only one active at a time; systemd services are mutually exclusive).
 
 ## Repository Layout
 - `pi/`: Raspberry Pi provisioning and runtime
-  - `install.sh`: One‑shot provisioning of Node/Python deps, nginx, mosquitto, kiosk, and services
+  - `install.sh`: One‑shot provisioning of Node/Python deps, nginx, kiosk, and services
   - `kiosk.sh`: Launches Chromium in kiosk mode to `http://localhost`
   - `node/`: Node BLE peripheral (`main.js`), service unit and starter script
   - `python/`: Python BLE peripheral (`code.py`), service unit and starter script
-  - `web/`: Static kiosk (`index.html`) that renders the QR from MQTT
+  - `web/`: Static kiosk (`index.html`) that renders the QR code
 - `android/RemoteLedBLE/`: Android app (deep link + BLE GATT + QR scanner)
 - `docs/`: Architecture notes and planning
 
@@ -46,11 +46,10 @@ The Pi-specific dependencies (RPi.GPIO, bluezero, dbus-python) are only installe
    ```
 
    What the installer does:
-   - Installs Node 18, Python BLE dependencies, nginx, and mosquitto
+   - Installs Node 18, Python BLE dependencies, and nginx
    - Copies code to `/usr/local/remoteled/`
    - Sets up the kiosk to show `http://localhost` in Chromium on boot
    - Creates two services (mutually exclusive): `remoteled-node.service` and `remoteled-python.service`
-   - Configures mosquitto on `1883` (MQTT) and `8083` (WebSocket)
 
 2. Choose ONE BLE implementation and enable it (Python recommended):
 
@@ -64,11 +63,11 @@ The Pi-specific dependencies (RPi.GPIO, bluezero, dbus-python) are only installe
    # sudo systemctl enable --now remoteled-node.service
    ```
 
-3. Ensure web and broker are running:
+3. Ensure web server is running:
 
    ```bash
-   sudo systemctl enable --now nginx mosquitto
-   sudo systemctl status nginx mosquitto | cat
+   sudo systemctl enable --now nginx
+   sudo systemctl status nginx | cat
    ```
 
 4. Reboot, then verify the kiosk shows a QR:
@@ -118,9 +117,8 @@ If your phone runs an older Android version, lower `minSdk` in `android/RemoteLe
 - Copy this repo (or just the `pi/` folder) onto the Pi.
 - Execute: `bash pi/install.sh`
 - What it does:
-  - Installs Node 18, Python BLE deps, nginx, mosquitto
+  - Installs Node 18, Python BLE deps, and nginx
   - Copies code to `/usr/local/remoteled/`
-  - Configures MQTT on `1883` (TCP) and `8083` (WebSockets), anonymous on localhost
   - Sets Chromium to autostart a kiosk at `http://localhost` and displays QR
   - Installs `remoteled-node.service` and `remoteled-python.service` (conflicting so only one runs)
 
@@ -160,10 +158,9 @@ Emulator note: The Android emulator does not support Bluetooth LE and the app de
 
 ## Troubleshooting
 - No QR on kiosk:
-  - Check mosquitto is running: `systemctl status mosquitto`
   - Check nginx: `systemctl status nginx`
-  - Verify WebSockets listener `8083` is configured in `/etc/mosquitto/mosquitto.conf`
-- Bluetooth won’t power on:
+  - Verify BLE service is running (Python or Node)
+- Bluetooth won't power on:
   - `rfkill list`, then `sudo rfkill unblock bluetooth && sudo hciconfig hci0 up`
 - Can’t see a deep link in logs:
   - Confirm exactly one BLE service is active (Python OR Node)
@@ -177,18 +174,15 @@ Emulator note: The Android emulator does not support Bluetooth LE and the app de
   - For Node, change the pin in `pi/node/main.js` from `529` to a valid BCM number (e.g., `17`) for Raspberry Pi
 
 ## How it works (one‑minute version)
-- Pi generates random 16‑bit service/characteristic UUIDs and a short session key (`bleKey`), then publishes a deep link to the `qr` MQTT topic.
-- The kiosk subscribes to `qr` over WebSocket and renders a QR code.
+- Pi generates random 16‑bit service/characteristic UUIDs and a short session key (`bleKey`), then displays a deep link as a QR code on the kiosk.
 - The Android app scans the QR, reconstructs full 128‑bit UUIDs, connects over BLE, reads current state, then sends JSON commands including the `bleKey`.
 
 ## Security Notes
-- Local only: MQTT is anonymous and bound locally; do not expose it to untrusted networks.
 - Session key: `bleKey` is short (16‑bit) and rotates per session; fine for demos, not strong security. For production, use pairing or stronger authentication.
 - Privileges: Node BLE currently runs with `sudo` to access HCI. Consider a dedicated service user and Linux capabilities (`CAP_NET_RAW`, `CAP_NET_ADMIN`).
 
 ## Reference
-- Web kiosk subscribes to MQTT topic `qr` and renders the deep link as a QR.
-- Pi publishes to `qr` and listens to `qr_backend` to prompt QR refresh.
+- Web kiosk displays the deep link as a QR code.
 - Services: `remoteled-node.service` and `remoteled-python.service` (conflicting).
 
 ## Database Setup

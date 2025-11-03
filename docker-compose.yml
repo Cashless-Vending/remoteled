@@ -1,11 +1,4 @@
 services:
-  mosquitto:
-    image: eclipse-mosquitto:latest
-    network_mode: host
-    volumes:
-      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
-    restart: unless-stopped
-
   iot-peripheral:
     build:
       context: .
@@ -19,8 +12,6 @@ services:
     volumes:
       - /run/dbus:/run/dbus
       - /var/run/dbus:/var/run/dbus
-    depends_on:
-      - mosquitto
     restart: unless-stopped
 
   web-kiosk:
@@ -29,6 +20,4 @@ services:
       dockerfile: Dockerfile.web
     platform: linux/arm64
     network_mode: host
-    depends_on:
-      - mosquitto
     restart: unless-stopped

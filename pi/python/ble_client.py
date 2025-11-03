@@ -7,8 +7,6 @@ HOW TO GET Pi's UUIDs:
    "New Service UUID: 0000XXXX-0000-1000-8000-00805f9b34fb"
    "Generated Deep Link: remoteled://connect/{address}/{service}/{char}/{bleKey}"
 3. Update the values in backend/app/core/config.py or set environment variables
-
-OR subscribe to MQTT topic "qr" to get the deep link
 """
 
 import asyncio
