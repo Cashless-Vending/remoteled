@@ -6,7 +6,6 @@ requires-python = ">=3.11"
 dependencies = [
     "ecdsa>=0.19.1",
     "fastapi>=0.118.3",
-    "paho-mqtt>=2.1.0",
     "psycopg2-binary>=2.9.11",
     "pydantic-settings>=2.11.0",
     "uvicorn[standard]>=0.30.0",

@@ -43,7 +43,7 @@ sudo apt install build-essential libdbus-glib-1-dev libgirepository1.0-dev -y
 python3 -m venv bt
 source bt/bin/activate
 #Installing python packages
-pip3 install dbus-python bluezero uuid RPi.GPIO paho-mqtt
+pip3 install dbus-python bluezero uuid RPi.GPIO
 pip3 install git+https://github.com/pybluez/pybluez.git#egg=pybluez
 deactivate
 
@@ -53,8 +53,6 @@ npm install
 
 #Install nginx web server to serve web gui
 sudo apt-get install nginx -y
-#Install mosquitto broker to communicate between python/node and web gui
-sudo apt-get install mosquitto -y
 
 cd "$REMOTELED_SETUP_DIR"
 
@@ -93,12 +91,6 @@ sudo chmod 644 /etc/systemd/system/remoteled-python.service
 sudo chmod 644 /etc/systemd/system/remoteled-node.service
 
 sudo systemctl daemon-reload
-
-# Configure MQTT broker only if the lines do not already exist
-mosquitto_conf="/etc/mosquitto/mosquitto.conf"
-if ! grep -q "allow_anonymous true" "$mosquitto_conf"; then
-    echo -e "\nallow_anonymous true\n\nlistener 1883\nprotocol mqtt\n\nlistener 8083\nprotocol websockets" | sudo tee -a "$mosquitto_conf"
-fi
 
 # Add Chromium autostart configuration if not already present
 wayfire_conf="$HOME/.config/wayfire.ini"
