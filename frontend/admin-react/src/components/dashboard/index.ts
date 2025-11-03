@@ -4,4 +4,5 @@ export * from './DeviceCard'
 export * from './DeviceGrid'
 export * from './OrdersTable'
 export * from './ServicesTable'
+export * from './LogsTable'
 

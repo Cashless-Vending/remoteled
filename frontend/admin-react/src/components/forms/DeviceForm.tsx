@@ -1,4 +1,4 @@
-import { useState, FormEvent, useEffect } from 'react'
+import { useState, FormEvent, useEffect, useId } from 'react'
 import { Modal } from '../common/Modal'
 import { Device, DeviceCreateRequest, DeviceUpdateRequest } from '../../types'
 
@@ -10,6 +10,13 @@ interface DeviceFormProps {
 }
 
 export const DeviceForm = ({ isOpen, onClose, onSubmit, editingDevice }: DeviceFormProps) => {
+  const formId = useId()
+  const labelId = `${formId}-label`
+  const publicKeyId = `${formId}-public-key`
+  const modelId = `${formId}-model`
+  const locationId = `${formId}-location`
+  const gpioId = `${formId}-gpio`
+
   const [formData, setFormData] = useState({
     label: '',
     public_key: '',
@@ -18,6 +25,7 @@ export const DeviceForm = ({ isOpen, onClose, onSubmit, editingDevice }: DeviceF
     gpio_pin: 17
   })
   const [loading, setLoading] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   useEffect(() => {
     if (editingDevice) {
@@ -42,11 +50,12 @@ export const DeviceForm = ({ isOpen, onClose, onSubmit, editingDevice }: DeviceF
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setFormError(null)
     try {
       await onSubmit(formData as any)
       onClose()
     } catch (error: any) {
-      alert(`Failed to ${editingDevice ? 'update' : 'create'} device:\n\n${error.message}`)
+      setFormError(error?.message || `Failed to ${editingDevice ? 'update' : 'create'} device.`)
     } finally {
       setLoading(false)
     }
@@ -61,6 +70,7 @@ export const DeviceForm = ({ isOpen, onClose, onSubmit, editingDevice }: DeviceF
       location: '',
       gpio_pin: 17
     })
+    setFormError(null)
   }
 
   return (
@@ -70,11 +80,21 @@ export const DeviceForm = ({ isOpen, onClose, onSubmit, editingDevice }: DeviceF
       title={editingDevice ? 'Edit Device' : 'Add New Device'}
     >
       <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
+        {formError ? (
+          <div className="status-banner status-error" style={{ marginBottom: '1rem' }}>
+            <span>{formError}</span>
+            <button type="button" onClick={() => setFormError(null)} aria-label="Clear error">
+              ×
+            </button>
+          </div>
+        ) : null}
+
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+          <label htmlFor={labelId} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
             Device Label *
           </label>
           <input
+            id={labelId}
             type="text"
             required
             value={formData.label}
@@ -85,10 +105,11 @@ export const DeviceForm = ({ isOpen, onClose, onSubmit, editingDevice }: DeviceF
 
         {!editingDevice && (
           <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+            <label htmlFor={publicKeyId} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
               Public Key *
             </label>
             <textarea
+              id={publicKeyId}
               required
               value={formData.public_key}
               onChange={(e) => setFormData({ ...formData, public_key: e.target.value })}
@@ -99,10 +120,11 @@ export const DeviceForm = ({ isOpen, onClose, onSubmit, editingDevice }: DeviceF
         )}
 
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+          <label htmlFor={modelId} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
             Model
           </label>
           <input
+            id={modelId}
             type="text"
             value={formData.model}
             onChange={(e) => setFormData({ ...formData, model: e.target.value })}
@@ -111,10 +133,11 @@ export const DeviceForm = ({ isOpen, onClose, onSubmit, editingDevice }: DeviceF
         </div>
 
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+          <label htmlFor={locationId} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
             Location
           </label>
           <input
+            id={locationId}
             type="text"
             value={formData.location}
             onChange={(e) => setFormData({ ...formData, location: e.target.value })}
@@ -123,10 +146,11 @@ export const DeviceForm = ({ isOpen, onClose, onSubmit, editingDevice }: DeviceF
         </div>
 
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+          <label htmlFor={gpioId} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
             GPIO Pin
           </label>
           <input
+            id={gpioId}
             type="number"
             min="0"
             max="40"

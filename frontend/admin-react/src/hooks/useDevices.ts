@@ -7,13 +7,21 @@ export const useDevices = (autoRefresh = false, interval = 30000) => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const parseError = (err: any) => {
+    if (err?.message) {
+      return err.message
+    }
+    return 'Unexpected device error'
+  }
+
   const fetchDevices = useCallback(async () => {
+    setLoading(true)
     try {
       const data = await devicesApi.getAll()
       setDevices(data)
       setError(null)
     } catch (err: any) {
-      setError(err.message)
+      setError(parseError(err))
     } finally {
       setLoading(false)
     }
@@ -29,20 +37,38 @@ export const useDevices = (autoRefresh = false, interval = 30000) => {
   }, [fetchDevices, autoRefresh, interval])
 
   const createDevice = async (device: DeviceCreateRequest): Promise<Device> => {
-    const newDevice = await devicesApi.create(device)
-    await fetchDevices()
-    return newDevice
+    try {
+      const newDevice = await devicesApi.create(device)
+      await fetchDevices()
+      return newDevice
+    } catch (err: any) {
+      const message = parseError(err)
+      setError(message)
+      throw new Error(message)
+    }
   }
 
   const updateDevice = async (id: string, device: DeviceUpdateRequest): Promise<Device> => {
-    const updated = await devicesApi.update(id, device)
-    await fetchDevices()
-    return updated
+    try {
+      const updated = await devicesApi.update(id, device)
+      await fetchDevices()
+      return updated
+    } catch (err: any) {
+      const message = parseError(err)
+      setError(message)
+      throw new Error(message)
+    }
   }
 
   const deleteDevice = async (id: string): Promise<void> => {
-    await devicesApi.delete(id)
-    await fetchDevices()
+    try {
+      await devicesApi.delete(id)
+      await fetchDevices()
+    } catch (err: any) {
+      const message = parseError(err)
+      setError(message)
+      throw new Error(message)
+    }
   }
 
   return {

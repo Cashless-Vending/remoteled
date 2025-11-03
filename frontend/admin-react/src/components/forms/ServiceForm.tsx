@@ -1,4 +1,4 @@
-import { useState, FormEvent, useEffect } from 'react'
+import { useState, FormEvent, useEffect, useId } from 'react'
 import { Modal } from '../common/Modal'
 import { Device, Service, ServiceCreateRequest, ServiceUpdateRequest } from '../../types'
 
@@ -11,6 +11,13 @@ interface ServiceFormProps {
 }
 
 export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService }: ServiceFormProps) => {
+  const formId = useId()
+  const deviceId = `${formId}-device`
+  const typeId = `${formId}-type`
+  const priceId = `${formId}-price`
+  const fixedId = `${formId}-fixed`
+  const variableId = `${formId}-variable`
+
   const [formData, setFormData] = useState({
     device_id: '',
     type: 'TRIGGER' as 'TRIGGER' | 'FIXED' | 'VARIABLE',
@@ -20,6 +27,7 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
     active: true
   })
   const [loading, setLoading] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
 
   useEffect(() => {
     if (editingService) {
@@ -42,6 +50,7 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setFormError(null)
     try {
       const payload: any = {
         device_id: formData.device_id,
@@ -59,7 +68,7 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
       await onSubmit(payload)
       onClose()
     } catch (error: any) {
-      alert(`Failed to ${editingService ? 'update' : 'create'} service:\n\n${error.message}`)
+      setFormError(error?.message || `Failed to ${editingService ? 'update' : 'create'} product.`)
     } finally {
       setLoading(false)
     }
@@ -75,6 +84,7 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
       minutes_per_25c: 15,
       active: true
     })
+    setFormError(null)
   }
 
   return (
@@ -84,11 +94,21 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
       title={editingService ? 'Edit Product' : 'Add New Product'}
     >
       <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
+        {formError ? (
+          <div className="status-banner status-error" style={{ marginBottom: '1rem' }}>
+            <span>{formError}</span>
+            <button type="button" onClick={() => setFormError(null)} aria-label="Clear error">
+              ×
+            </button>
+          </div>
+        ) : null}
+
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+          <label htmlFor={deviceId} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
             Device *
           </label>
           <select
+            id={deviceId}
             required
             value={formData.device_id}
             onChange={(e) => setFormData({ ...formData, device_id: e.target.value })}
@@ -101,10 +121,11 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
         </div>
 
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+          <label htmlFor={typeId} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
             Type *
           </label>
           <select
+            id={typeId}
             required
             value={formData.type}
             onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
@@ -117,10 +138,11 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
         </div>
 
         <div style={{ marginBottom: '1rem' }}>
-          <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+          <label htmlFor={priceId} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
             Price (cents) *
           </label>
           <input
+            id={priceId}
             type="number"
             required
             min="0"
@@ -132,10 +154,11 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
 
         {formData.type === 'FIXED' && (
           <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+            <label htmlFor={fixedId} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
               Fixed Minutes *
             </label>
             <input
+              id={fixedId}
               type="number"
               required
               min="1"
@@ -148,10 +171,11 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
 
         {formData.type === 'VARIABLE' && (
           <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
+            <label htmlFor={variableId} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
               Minutes per $0.25 *
             </label>
             <input
+              id={variableId}
               type="number"
               required
               min="1"
