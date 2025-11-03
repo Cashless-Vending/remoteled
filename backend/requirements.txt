@@ -20,6 +20,9 @@ email-validator==2.1.0
 ecdsa==0.18.0
 cryptography==41.0.7
 
+# Payments
+stripe==5.4.0
+
 # Authentication
 passlib[bcrypt]==1.7.4
 
