@@ -57,7 +57,7 @@ public class QRCodeScannerActivity extends AppCompatActivity {
 
         // Override test button to simulate HTTPS QR scan
         testModeButton.setOnClickListener(v -> {
-            String testUrl = "https://your-api.com/detail?machineId=UNKNOWN&mac=2C:CF:67:7C:DF:AB&service=7514&char=DE40&key=9F64";
+            String testUrl = "http://10.0.2.2:8000/detail?machineId=UNKNOWN&mac=2C:CF:67:7C:DF:AB&service=7514&char=DE40&key=9F64";
             Toast.makeText(this, "Test: Simulating QR scan", Toast.LENGTH_SHORT).show();
             android.util.Log.d("QRScanner", "Test scan: " + testUrl);
 
