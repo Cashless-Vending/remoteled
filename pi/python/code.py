@@ -19,7 +19,7 @@ CHAR_UUID = f'0000{SHORT_CHAR_UUID}-0000-1000-8000-00805f9b34fb'
 
 # Machine configuration
 MACHINE_ID = os.getenv('MACHINE_ID', 'UNKNOWN')
-API_BASE_URL = os.getenv('API_BASE_URL', 'https://your-api.com')
+API_BASE_URL = os.getenv('API_BASE_URL', 'http://10.0.2.2:8000')
 
 # Global state for the LED and BLE characteristics
 led_state = 'off'

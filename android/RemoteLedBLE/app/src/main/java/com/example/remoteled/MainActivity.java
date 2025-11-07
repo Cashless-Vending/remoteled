@@ -270,12 +270,24 @@ public class MainActivity extends AppCompatActivity {
                     Log.d(TAG, "Parsed remoteled URL - MAC: " + macAddress + ", Service: " + serviceUUID + ", Char: " + characteristicUUID + ", Key: " + bleKey);
                 }
 
-                // Connect to the BLE device if we have all required parameters
-                if (macAddress != null && serviceUUID != null && characteristicUUID != null && bleKey != null) {
-                    connectToDevice(macAddress, UUID.fromString(serviceUUID), UUID.fromString(characteristicUUID));
+                // TEMPORARY: Bypass BLE connection, just open the URL in browser
+                // TODO: Re-enable BLE connection after testing API endpoint
+                if ("https".equals(scheme) || "http".equals(scheme)) {
+                    Log.d(TAG, "BYPASS MODE: Opening URL in browser instead of BLE connection");
+                    Toast.makeText(this, "Opening detail page...", Toast.LENGTH_SHORT).show();
+
+                    // Open the URL in browser
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, data);
+                    startActivity(browserIntent);
+                    finish(); // Close MainActivity
                 } else {
-                    Log.e(TAG, "Missing required BLE parameters from deep link");
-                    Toast.makeText(this, "Invalid QR code format", Toast.LENGTH_SHORT).show();
+                    // For remoteled:// scheme, still try BLE connection
+                    if (macAddress != null && serviceUUID != null && characteristicUUID != null && bleKey != null) {
+                        connectToDevice(macAddress, UUID.fromString(serviceUUID), UUID.fromString(characteristicUUID));
+                    } else {
+                        Log.e(TAG, "Missing required BLE parameters from deep link");
+                        Toast.makeText(this, "Invalid QR code format", Toast.LENGTH_SHORT).show();
+                    }
                 }
             }
         }
