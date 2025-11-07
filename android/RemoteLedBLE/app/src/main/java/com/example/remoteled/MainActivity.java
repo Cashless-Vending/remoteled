@@ -231,6 +231,19 @@ public class MainActivity extends AppCompatActivity {
                     scannedDeviceId = qpDeviceId;
                 }
 
+                if (BuildConfig.DEMO_MODE || BuildConfig.DEBUG) {
+                    if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
+                        Log.d(TAG, "Demo mode enabled; skipping BLE and launching product selection for " + scannedDeviceId);
+                        Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
+                        i.putExtra("DEVICE_ID", scannedDeviceId);
+                        startActivity(i);
+                        finish();
+                        return;
+                    } else {
+                        Log.w(TAG, "Demo mode skip requested but deviceId missing");
+                    }
+                }
+
                 // Connect to the BLE device
                 connectToDevice(macAddress, UUID.fromString(serviceUUID), UUID.fromString(characteristicUUID));
             }
@@ -294,7 +307,7 @@ public class MainActivity extends AppCompatActivity {
                         updateConnectionStatus("Characteristic found");
                         enableControlButtons(true); // handshake complete
                         // If we came from QR and have a deviceId, navigate into app flow
-                        if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
+                        if (!BuildConfig.DEMO_MODE && scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
                             runOnUiThread(() -> {
                                 Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
                                 i.putExtra("DEVICE_ID", scannedDeviceId);
