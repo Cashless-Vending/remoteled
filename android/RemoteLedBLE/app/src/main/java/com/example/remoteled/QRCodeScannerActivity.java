@@ -50,9 +50,22 @@ public class QRCodeScannerActivity extends AppCompatActivity {
 
         barcodeView = findViewById(R.id.barcode_scanner);
         testModeButton = findViewById(R.id.test_mode_button);
-        
-        // Hide test button and enforce real flow
-        testModeButton.setVisibility(android.view.View.GONE);
+
+        // TEMPORARY: Show test button for debugging
+        testModeButton.setVisibility(android.view.View.VISIBLE);
+        testModeButton.setText("Test HTTPS Deep Link");
+
+        // Override test button to simulate HTTPS QR scan
+        testModeButton.setOnClickListener(v -> {
+            String testUrl = "https://your-api.com/detail?machineId=UNKNOWN&mac=2C:CF:67:7C:DF:AB&service=7514&char=DE40&key=9F64";
+            Toast.makeText(this, "Test: Simulating QR scan", Toast.LENGTH_SHORT).show();
+            android.util.Log.d("QRScanner", "Test scan: " + testUrl);
+
+            // Simulate QR code scan
+            android.net.Uri uri = android.net.Uri.parse(testUrl);
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri, QRCodeScannerActivity.this, MainActivity.class);
+            startActivity(intent);
+        });
 
         // Check for camera permissions
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
@@ -117,6 +130,9 @@ public class QRCodeScannerActivity extends AppCompatActivity {
     }
 
     private void startQRCodeScanner() {
+        android.util.Log.d("QRScanner", "Starting QR code scanner...");
+        Toast.makeText(this, "Scanner ready - point at QR code", Toast.LENGTH_SHORT).show();
+
         barcodeView.decodeContinuous(new BarcodeCallback() {
             @Override
             public void barcodeResult(BarcodeResult result) {
