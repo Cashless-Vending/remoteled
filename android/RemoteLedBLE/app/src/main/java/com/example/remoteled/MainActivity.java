@@ -72,6 +72,21 @@ public class MainActivity extends AppCompatActivity {
         toggleImage = findViewById(R.id.toggleImage);
         disconnectButton = findViewById(R.id.disconnect);
 
+        // TEMPORARY: Check if it's an HTTP/HTTPS URL first, skip BLE setup
+        Intent intent = getIntent();
+        if (intent != null && intent.getAction() != null && intent.getAction().equals(Intent.ACTION_VIEW)) {
+            Uri data = intent.getData();
+            if (data != null && ("https".equals(data.getScheme()) || "http".equals(data.getScheme()))) {
+                // It's an HTTP/HTTPS URL - bypass BLE and open in browser directly
+                Log.d(TAG, "BYPASS: HTTP/HTTPS URL detected, opening browser without BLE");
+                Toast.makeText(this, "Opening detail page...", Toast.LENGTH_SHORT).show();
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, data);
+                startActivity(browserIntent);
+                finish();
+                return; // Exit early, don't request BLE permissions
+            }
+        }
+
         checkAndRequestPermissions();
 
         toggleBox.setOnClickListener(new View.OnClickListener() {
