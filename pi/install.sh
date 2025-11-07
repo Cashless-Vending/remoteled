@@ -7,22 +7,16 @@ REMOTELED_SETUP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 #Update packages
 sudo apt-get update
-#Get nodejs package keys to install latest releases of nodejs
-curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-#Install nodejs on raspberry pi
-sudo apt-get install nodejs
 #Upgrade all packages of raspberry pi (optional)
 sudo apt-get upgrade -y
 
 #Convert dos files to unix
 dos2unix "$REMOTELED_SETUP_DIR/install.sh"
-dos2unix "$REMOTELED_SETUP_DIR/node/start.sh"
 dos2unix "$REMOTELED_SETUP_DIR/python/start.sh"
 
 #Copy code files in /home/pi/ folder (If username is pi)
 sudo mkdir -p /usr/local/remoteled/
 sudo cp -r "$REMOTELED_SETUP_DIR/python" /usr/local/remoteled/
-sudo cp -r "$REMOTELED_SETUP_DIR/node" /usr/local/remoteled/
 sudo cp "$REMOTELED_SETUP_DIR/splash.png" /usr/local/remoteled/
 sudo cp "$REMOTELED_SETUP_DIR/kiosk.sh" /usr/local/remoteled/
 
@@ -46,10 +40,6 @@ source bt/bin/activate
 pip3 install dbus-python bluezero uuid RPi.GPIO
 pip3 install git+https://github.com/pybluez/pybluez.git#egg=pybluez
 deactivate
-
-#Install required nodejs packages/libraries
-cd /usr/local/remoteled/node/
-npm install
 
 #Install nginx web server to serve web gui
 sudo apt-get install nginx -y
@@ -76,19 +66,15 @@ sudo sed -i 's/message_sprite.SetImage(my_image);//g' /usr/share/plymouth/themes
 sudo plymouth-set-default-theme --rebuild-initrd pix
 
 #make Autostart files executable
-sudo chmod +x /usr/local/remoteled/node/start.sh
 sudo chmod +x /usr/local/remoteled/python/start.sh
 sudo chmod +x /usr/local/remoteled/kiosk.sh
 
 sudo cp "$REMOTELED_SETUP_DIR/python/remoteled-python.service" /etc/systemd/system/remoteled-python.service
-sudo cp "$REMOTELED_SETUP_DIR/node/remoteled-node.service" /etc/systemd/system/remoteled-node.service
 
 CURRENT_USER=$(whoami)
 sudo sed -i "s/USERNAME_PLACEHOLDER/${CURRENT_USER}/g" /etc/systemd/system/remoteled-python.service
-sudo sed -i "s/USERNAME_PLACEHOLDER/${CURRENT_USER}/g" /etc/systemd/system/remoteled-node.service
 
 sudo chmod 644 /etc/systemd/system/remoteled-python.service
-sudo chmod 644 /etc/systemd/system/remoteled-node.service
 
 sudo systemctl daemon-reload
 
