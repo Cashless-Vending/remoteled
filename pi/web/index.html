@@ -172,8 +172,8 @@
                         const heading = document.getElementById("heading");
                         qr_box.innerHTML = "";
 
-                        if (message.startsWith("remoteled://")) {
-                            heading.innerHTML = "Scan QR";
+                        if (message.startsWith("remoteled://") || message.startsWith("http://") || message.startsWith("https://")) {
+                            heading.innerHTML = "Scan QR Code";
                             new QRCode(qr_box, message);
                         } else {
                             heading.innerHTML = message;

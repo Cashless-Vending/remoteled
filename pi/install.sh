@@ -49,6 +49,10 @@ cd "$REMOTELED_SETUP_DIR"
 #Copy Web GUI files in apache/nginx path at /var/www/html
 sudo cp -r web/* /var/www/html/
 
+#Enable and start nginx
+sudo systemctl enable nginx
+sudo systemctl start nginx
+
 if [ -z "${DISPLAY}" ]; then
     export DISPLAY=:0
 fi
@@ -73,6 +77,13 @@ sudo cp "$REMOTELED_SETUP_DIR/python/remoteled-python.service" /etc/systemd/syst
 
 CURRENT_USER=$(whoami)
 sudo sed -i "s/USERNAME_PLACEHOLDER/${CURRENT_USER}/g" /etc/systemd/system/remoteled-python.service
+
+# Prompt for Machine ID if not already set
+if [ -z "$MACHINE_ID" ]; then
+    read -p "Enter Machine ID (e.g., MACHINE_001): " MACHINE_ID
+    MACHINE_ID=${MACHINE_ID:-"UNKNOWN"}
+fi
+sudo sed -i "s/MACHINE_ID_PLACEHOLDER/${MACHINE_ID}/g" /etc/systemd/system/remoteled-python.service
 
 sudo chmod 644 /etc/systemd/system/remoteled-python.service
 
