@@ -133,9 +133,7 @@ public class QRCodeScannerActivity extends AppCompatActivity {
         android.util.Log.d("QRScanner", "Starting QR code scanner...");
         Toast.makeText(this, "Scanner ready - point at QR code", Toast.LENGTH_SHORT).show();
 
-        // Start camera preview
-        barcodeView.resume();
-
+        // Setup continuous decoding (camera will start in onResume)
         barcodeView.decodeContinuous(new BarcodeCallback() {
             @Override
             public void barcodeResult(BarcodeResult result) {
