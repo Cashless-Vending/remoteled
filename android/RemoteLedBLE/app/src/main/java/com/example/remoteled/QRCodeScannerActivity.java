@@ -122,6 +122,10 @@ public class QRCodeScannerActivity extends AppCompatActivity {
             public void barcodeResult(BarcodeResult result) {
                 String qrCodeContent = result.getText();
 
+                // DEBUG: Show what was scanned
+                Toast.makeText(QRCodeScannerActivity.this, "Scanned: " + qrCodeContent, Toast.LENGTH_LONG).show();
+                android.util.Log.d("QRScanner", "Scanned QR code: " + qrCodeContent);
+
                 // Handle HTTPS deep links: https://your-api.com/detail?machineId=XXX&mac=YYY&...
                 if (qrCodeContent != null && (qrCodeContent.startsWith("https://") || qrCodeContent.startsWith("http://"))) {
                     // Check if it contains the required BLE parameters
