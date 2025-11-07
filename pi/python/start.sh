@@ -1,10 +1,9 @@
 #!/bin/bash
-source bt/bin/activate
 
 # Restart loop for the BLE Python script
 while true; do
   echo "Starting BLE Python script..."
-  python3 code.py  # Replace `code.py` with your Python filename
+  /home/dizzydoze/.local/bin/uv run code.py
 
   # Capture the exit status of the Python script
   exit_status=$?

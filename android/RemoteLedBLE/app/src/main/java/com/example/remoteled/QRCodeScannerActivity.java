@@ -121,8 +121,26 @@ public class QRCodeScannerActivity extends AppCompatActivity {
             @Override
             public void barcodeResult(BarcodeResult result) {
                 String qrCodeContent = result.getText();
-                
-                // Accept either device UUID QR or remoteled://connect deep link
+
+                // Handle HTTPS deep links: https://your-api.com/detail?machineId=XXX&mac=YYY&...
+                if (qrCodeContent != null && (qrCodeContent.startsWith("https://") || qrCodeContent.startsWith("http://"))) {
+                    // Check if it contains the required BLE parameters
+                    if (qrCodeContent.contains("/detail") && qrCodeContent.contains("mac=")) {
+                        barcodeView.pause();
+                        try {
+                            android.net.Uri uri = android.net.Uri.parse(qrCodeContent);
+                            // Forward the HTTPS deep link to MainActivity for BLE connection
+                            Intent intent = new Intent(Intent.ACTION_VIEW, uri, QRCodeScannerActivity.this, MainActivity.class);
+                            startActivity(intent);
+                        } catch (Exception e) {
+                            Toast.makeText(QRCodeScannerActivity.this, "Invalid detail link", Toast.LENGTH_SHORT).show();
+                            barcodeView.resume();
+                        }
+                        return;
+                    }
+                }
+
+                // Handle legacy remoteled://connect deep link
                 if (qrCodeContent != null && qrCodeContent.startsWith("remoteled://connect/")) {
                     barcodeView.pause();
                     try {

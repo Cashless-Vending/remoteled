@@ -221,18 +221,62 @@ public class MainActivity extends AppCompatActivity {
         if (intent != null && intent.getAction() != null && intent.getAction().equals(Intent.ACTION_VIEW)) {
             Uri data = intent.getData();
             if (data != null) {
-                String macAddress = data.getPathSegments().get(0);
-                String serviceUUID = "0000"+data.getPathSegments().get(1)+"-0000-1000-8000-00805f9b34fb";
-                String characteristicUUID = "0000"+data.getPathSegments().get(2)+"-0000-1000-8000-00805f9b34fb";
-                bleKey = data.getPathSegments().get(3);
-                // Optional deviceId query parameter from QR
-                String qpDeviceId = data.getQueryParameter("deviceId");
-                if (qpDeviceId != null && !qpDeviceId.isEmpty()) {
-                    scannedDeviceId = qpDeviceId;
+                String scheme = data.getScheme();
+                String macAddress = null;
+                String serviceUUID = null;
+                String characteristicUUID = null;
+
+                // Handle HTTPS URLs: https://your-api.com/detail?machineId=XXX&mac=YYY&service=7514&char=DE40&key=9F64
+                if ("https".equals(scheme) || "http".equals(scheme)) {
+                    Log.d(TAG, "Processing HTTPS deep link: " + data.toString());
+
+                    // Parse query parameters
+                    macAddress = data.getQueryParameter("mac");
+                    String shortServiceUUID = data.getQueryParameter("service");
+                    String shortCharUUID = data.getQueryParameter("char");
+                    bleKey = data.getQueryParameter("key");
+                    String machineId = data.getQueryParameter("machineId");
+
+                    // Convert short UUIDs to full format
+                    if (shortServiceUUID != null) {
+                        serviceUUID = "0000" + shortServiceUUID + "-0000-1000-8000-00805f9b34fb";
+                    }
+                    if (shortCharUUID != null) {
+                        characteristicUUID = "0000" + shortCharUUID + "-0000-1000-8000-00805f9b34fb";
+                    }
+
+                    // Store machineId if provided
+                    if (machineId != null && !machineId.isEmpty()) {
+                        scannedDeviceId = machineId;
+                    }
+
+                    Log.d(TAG, "Parsed HTTPS URL - MAC: " + macAddress + ", Service: " + serviceUUID + ", Char: " + characteristicUUID + ", Key: " + bleKey);
+                }
+                // Handle legacy remoteled:// URLs: remoteled://connect/{mac}/{service}/{char}/{key}
+                else if ("remoteled".equals(scheme)) {
+                    Log.d(TAG, "Processing remoteled:// deep link: " + data.toString());
+
+                    macAddress = data.getPathSegments().get(0);
+                    serviceUUID = "0000" + data.getPathSegments().get(1) + "-0000-1000-8000-00805f9b34fb";
+                    characteristicUUID = "0000" + data.getPathSegments().get(2) + "-0000-1000-8000-00805f9b34fb";
+                    bleKey = data.getPathSegments().get(3);
+
+                    // Optional deviceId query parameter from QR
+                    String qpDeviceId = data.getQueryParameter("deviceId");
+                    if (qpDeviceId != null && !qpDeviceId.isEmpty()) {
+                        scannedDeviceId = qpDeviceId;
+                    }
+
+                    Log.d(TAG, "Parsed remoteled URL - MAC: " + macAddress + ", Service: " + serviceUUID + ", Char: " + characteristicUUID + ", Key: " + bleKey);
                 }
 
-                // Connect to the BLE device
-                connectToDevice(macAddress, UUID.fromString(serviceUUID), UUID.fromString(characteristicUUID));
+                // Connect to the BLE device if we have all required parameters
+                if (macAddress != null && serviceUUID != null && characteristicUUID != null && bleKey != null) {
+                    connectToDevice(macAddress, UUID.fromString(serviceUUID), UUID.fromString(characteristicUUID));
+                } else {
+                    Log.e(TAG, "Missing required BLE parameters from deep link");
+                    Toast.makeText(this, "Invalid QR code format", Toast.LENGTH_SHORT).show();
+                }
             }
         }
     }
