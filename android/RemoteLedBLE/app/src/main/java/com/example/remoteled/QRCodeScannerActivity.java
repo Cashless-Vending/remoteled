@@ -27,6 +27,8 @@ public class QRCodeScannerActivity extends AppCompatActivity {
     private static final boolean DEMO_SKIP_QR = false; // ensure real QR flow
     private BarcodeView barcodeView;
     private Button testModeButton;
+    private Button startScanButton;
+    private boolean isScanning = false;
     
     // Test device IDs (from database seed data)
     private static final String[] TEST_DEVICES = {
@@ -50,9 +52,11 @@ public class QRCodeScannerActivity extends AppCompatActivity {
 
         barcodeView = findViewById(R.id.barcode_scanner);
         testModeButton = findViewById(R.id.test_mode_button);
+        startScanButton = findViewById(R.id.start_scan_button);
         
         // Hide test button and enforce real flow
         testModeButton.setVisibility(android.view.View.GONE);
+        configureStartScanButton(false, "Waiting for camera");
 
         // Check for camera permissions
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
@@ -64,6 +68,15 @@ public class QRCodeScannerActivity extends AppCompatActivity {
                 new String[]{Manifest.permission.CAMERA}, 
                 CAMERA_PERMISSION_REQUEST_CODE);
         }
+
+        startScanButton.setOnClickListener(v -> {
+            if (!isScanning) {
+                isScanning = true;
+                configureStartScanButton(false, "Scanning...");
+                Toast.makeText(QRCodeScannerActivity.this, "Scan started", Toast.LENGTH_SHORT).show();
+                barcodeView.resume();
+            }
+        });
     }
     
     /**
@@ -117,14 +130,20 @@ public class QRCodeScannerActivity extends AppCompatActivity {
     }
 
     private void startQRCodeScanner() {
+        android.util.Log.d("QRScanner", "Starting QR code scanner...");
+        Toast.makeText(this, "Scanner ready - point at QR code", Toast.LENGTH_SHORT).show();
+
+        // Setup continuous decoding (camera will start in onResume)
         barcodeView.decodeContinuous(new BarcodeCallback() {
             @Override
             public void barcodeResult(BarcodeResult result) {
                 String qrCodeContent = result.getText();
+                barcodeView.pause();
+                isScanning = false;
+                runOnUiThread(() -> configureStartScanButton(true, "Start Scan"));
                 
                 // Accept either device UUID QR or remoteled://connect deep link
                 if (qrCodeContent != null && qrCodeContent.startsWith("remoteled://connect/")) {
-                    barcodeView.pause();
                     try {
                         android.net.Uri uri = android.net.Uri.parse(qrCodeContent);
                         // Forward the deep link to MainActivity which performs BLE handshake
@@ -140,13 +159,14 @@ public class QRCodeScannerActivity extends AppCompatActivity {
                 // Fallback: extract device UUID QR
                 String deviceId = extractDeviceId(qrCodeContent);
                 if (deviceId != null && isValidUUID(deviceId)) {
-                    barcodeView.pause();
                     navigateToProductSelection(deviceId);
                 } else {
                     Toast.makeText(QRCodeScannerActivity.this, "Invalid QR Code. Please scan a valid code.", Toast.LENGTH_SHORT).show();
                 }
             }
         });
+        barcodeView.pause();
+        configureStartScanButton(true, "Start Scan");
     }
     
     /**
@@ -203,7 +223,7 @@ public class QRCodeScannerActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (barcodeView != null) {
+        if (barcodeView != null && isScanning) {
             barcodeView.resume();
         }
     }
@@ -232,5 +252,12 @@ public class QRCodeScannerActivity extends AppCompatActivity {
                 // Don't finish - let user use test mode button
             }
         }
+    }
+
+    private void configureStartScanButton(boolean enabled, String text) {
+        if (startScanButton == null) return;
+        startScanButton.setEnabled(enabled);
+        startScanButton.setAlpha(enabled ? 1f : 0.6f);
+        startScanButton.setText(text);
     }
 }

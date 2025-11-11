@@ -21,6 +21,16 @@
 - `nginx` static server.
 - Chromium autostart via Wayfire/LXDE.
 
+## Device ID Deep Links (Testing)
+- BLE scripts read `DEVICE_ID` to embed `?deviceId=<uuid>` in the QR deep link shown on the kiosk.
+- `pi/node/start.sh` and `pi/python/start.sh` load the value from `/usr/local/remoteled/device_id` if present, otherwise fall back to the seeded demo ID `d1111111-1111-1111-1111-111111111111`.
+- Set the test ID without editing scripts:
+  ```
+  echo "d1111111-1111-1111-1111-111111111111" | sudo tee /usr/local/remoteled/device_id
+  sudo systemctl restart remoteled-node.service   # or remoteled-python.service
+  ```
+- Use a different device UUID from the database by updating that file (or exporting `DEVICE_ID`) before restarting the service.
+
 ## Ports
 - Port `80` (nginx), BLE (HCI).
 

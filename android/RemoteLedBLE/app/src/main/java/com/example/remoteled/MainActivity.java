@@ -72,6 +72,21 @@ public class MainActivity extends AppCompatActivity {
         toggleImage = findViewById(R.id.toggleImage);
         disconnectButton = findViewById(R.id.disconnect);
 
+        // TEMPORARY: Check if it's an HTTP/HTTPS URL first, skip BLE setup
+        Intent intent = getIntent();
+        if (intent != null && intent.getAction() != null && intent.getAction().equals(Intent.ACTION_VIEW)) {
+            Uri data = intent.getData();
+            if (data != null && ("https".equals(data.getScheme()) || "http".equals(data.getScheme()))) {
+                // It's an HTTP/HTTPS URL - bypass BLE and open in browser directly
+                Log.d(TAG, "BYPASS: HTTP/HTTPS URL detected, opening browser without BLE");
+                Toast.makeText(this, "Opening detail page...", Toast.LENGTH_SHORT).show();
+                Intent browserIntent = new Intent(Intent.ACTION_VIEW, data);
+                startActivity(browserIntent);
+                finish();
+                return; // Exit early, don't request BLE permissions
+            }
+        }
+
         checkAndRequestPermissions();
 
         toggleBox.setOnClickListener(new View.OnClickListener() {
@@ -231,8 +246,41 @@ public class MainActivity extends AppCompatActivity {
                     scannedDeviceId = qpDeviceId;
                 }
 
-                // Connect to the BLE device
-                connectToDevice(macAddress, UUID.fromString(serviceUUID), UUID.fromString(characteristicUUID));
+                if (BuildConfig.DEMO_MODE || BuildConfig.DEBUG) {
+                    if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
+                        Log.d(TAG, "Demo mode enabled; skipping BLE and launching product selection for " + scannedDeviceId);
+                        Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
+                        i.putExtra("DEVICE_ID", scannedDeviceId);
+                        startActivity(i);
+                        finish();
+                        return;
+                    } else {
+                        Log.w(TAG, "Demo mode skip requested but deviceId missing");
+                    }
+                }
+
+                    Log.d(TAG, "Parsed remoteled URL - MAC: " + macAddress + ", Service: " + serviceUUID + ", Char: " + characteristicUUID + ", Key: " + bleKey);
+                }
+
+                // TEMPORARY: Bypass BLE connection, just open the URL in browser
+                // TODO: Re-enable BLE connection after testing API endpoint
+                if ("https".equals(scheme) || "http".equals(scheme)) {
+                    Log.d(TAG, "BYPASS MODE: Opening URL in browser instead of BLE connection");
+                    Toast.makeText(this, "Opening detail page...", Toast.LENGTH_SHORT).show();
+
+                    // Open the URL in browser
+                    Intent browserIntent = new Intent(Intent.ACTION_VIEW, data);
+                    startActivity(browserIntent);
+                    finish(); // Close MainActivity
+                } else {
+                    // For remoteled:// scheme, still try BLE connection
+                    if (macAddress != null && serviceUUID != null && characteristicUUID != null && bleKey != null) {
+                        connectToDevice(macAddress, UUID.fromString(serviceUUID), UUID.fromString(characteristicUUID));
+                    } else {
+                        Log.e(TAG, "Missing required BLE parameters from deep link");
+                        Toast.makeText(this, "Invalid QR code format", Toast.LENGTH_SHORT).show();
+                    }
+                }
             }
         }
     }
@@ -294,7 +342,7 @@ public class MainActivity extends AppCompatActivity {
                         updateConnectionStatus("Characteristic found");
                         enableControlButtons(true); // handshake complete
                         // If we came from QR and have a deviceId, navigate into app flow
-                        if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
+                        if (!BuildConfig.DEMO_MODE && scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
                             runOnUiThread(() -> {
                                 Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
                                 i.putExtra("DEVICE_ID", scannedDeviceId);
