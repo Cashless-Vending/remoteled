@@ -1,5 +1,6 @@
 import json
 import os
+import random
 import threading
 import time
 from bluezero import adapter, peripheral
@@ -170,9 +171,18 @@ def run_ble_peripheral(current_peripheral):
 
 def main(adapter_address, device_id=None):
     global current_peripheral
+    if device_id is None:
+        device_id = os.getenv("DEVICE_ID")
+    if device_id:
+        print(f"[Pi] Using DEVICE_ID for deep link generation: {device_id}")
+    else:
+        print("[Pi] DEVICE_ID not provided; deep link will omit deviceId query parameter")
+    
+    # Generate initial UUIDs for the service and characteristic
+    generate_new_uuids(False)
 
-    # Setup the Bluezero Peripheral with hardcoded UUIDs
-    current_peripheral = setup_peripheral(adapter_address, False)
+    # Setup the initial Bluezero Peripheral
+    current_peripheral = setup_peripheral(adapter_address,False)
 
     # Generate and publish the cloud API URL for QR code
     generate_deep_link(adapter_address, SHORT_SERVICE_UUID, SHORT_CHAR_UUID, BLE_KEY, device_id)

@@ -13,10 +13,9 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.remoteled.models.Order;
 import com.example.remoteled.models.requests.CreateOrderRequest;
-import com.example.remoteled.models.requests.MockPaymentRequest;
+import com.example.remoteled.models.StripePaymentTriggerResponse;
+import com.example.remoteled.models.requests.StripePaymentTriggerRequest;
 import com.example.remoteled.network.RetrofitClient;
-
-import java.util.Map;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -157,8 +156,8 @@ public class PaymentActivity extends AppCompatActivity {
                             Log.d(TAG, "Status: " + createdOrder.getStatus());
                             Log.d(TAG, "Authorized minutes: " + createdOrder.getAuthorizedMinutes());
                             
-                            // Step 2: Process mock payment
-                            processMockPayment();
+                            // Step 2: Process Stripe payment
+                            processStripePayment();
                         } else {
                             Log.e(TAG, "Failed to create order: " + response.code());
                             hideLoading();
@@ -175,42 +174,53 @@ public class PaymentActivity extends AppCompatActivity {
                 });
     }
     
-    private void processMockPayment() {
-        MockPaymentRequest request = new MockPaymentRequest(createdOrder.getId(), true);
-        
-        Log.d(TAG, "Processing mock payment for order: " + createdOrder.getId());
-        
+    private void processStripePayment() {
+        if (createdOrder == null) {
+            hideLoading();
+            showError("Order not available for payment");
+            return;
+        }
+
+        boolean skipLed = BuildConfig.DEMO_MODE || BuildConfig.DEBUG;
+
+        StripePaymentTriggerRequest request = new StripePaymentTriggerRequest(
+                priceCents,
+                null,
+                deviceId,
+                "Order " + createdOrder.getId(),
+                3,
+                createdOrder.getId(),
+                skipLed
+        );
+
+        Log.d(TAG, "Processing Stripe payment for order: " + createdOrder.getId());
+
         RetrofitClient.getInstance()
                 .getApiService()
-                .processMockPayment(request)
-                .enqueue(new Callback<Map<String, Object>>() {
+                .processStripePayment(request)
+                .enqueue(new Callback<StripePaymentTriggerResponse>() {
                     @Override
-                    public void onResponse(Call<Map<String, Object>> call, 
-                                         Response<Map<String, Object>> response) {
+                    public void onResponse(Call<StripePaymentTriggerResponse> call,
+                                           Response<StripePaymentTriggerResponse> response) {
                         hideLoading();
-                        
+
                         if (response.isSuccessful() && response.body() != null) {
-                            Map<String, Object> result = response.body();
-                            boolean success = (boolean) result.get("success");
-                            
-                            if (success) {
-                                Log.d(TAG, "Payment successful!");
-                                navigateToProcessing();
-                            } else {
-                                Log.e(TAG, "Payment failed (simulated)");
-                                showError("Payment failed");
-                            }
+                            StripePaymentTriggerResponse result = response.body();
+                            Log.d(TAG, "Stripe payment success. PaymentIntent: " + result.getPaymentIntentId());
+                            Log.d(TAG, "Payment status: " + result.getPaymentStatus());
+                            createdOrder.setStatus("PAID");
+                            navigateToProcessing();
                         } else {
-                            Log.e(TAG, "Payment API error: " + response.code());
-                            showError("Payment processing failed");
+                            Log.e(TAG, "Stripe payment API error: " + response.code());
+                            showError("Stripe payment failed");
                         }
                     }
-                    
+
                     @Override
-                    public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                        Log.e(TAG, "Payment network error: " + t.getMessage(), t);
+                    public void onFailure(Call<StripePaymentTriggerResponse> call, Throwable t) {
+                        Log.e(TAG, "Stripe payment network error: " + t.getMessage(), t);
                         hideLoading();
-                        showError("Network error during payment");
+                        showError("Network error during Stripe payment");
                     }
                 });
     }

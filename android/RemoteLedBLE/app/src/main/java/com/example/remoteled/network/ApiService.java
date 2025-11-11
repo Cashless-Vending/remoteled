@@ -23,10 +23,18 @@ public interface ApiService {
     
     @GET("orders/{order_id}")
     Call<Order> getOrder(@Path("order_id") String orderId);
+
+    @PATCH("orders/{order_id}/status")
+    Call<Order> updateOrderStatus(
+            @Path("order_id") String orderId,
+            @Body OrderStatusUpdateRequest request
+    );
     
     // Payment Endpoints
-    @POST("payments/mock")
-    Call<Map<String, Object>> processMockPayment(@Body MockPaymentRequest request);
+    @POST("payments/stripe/payment-and-trigger")
+    Call<StripePaymentTriggerResponse> processStripePayment(
+            @Body StripePaymentTriggerRequest request
+    );
     
     // Authorization Endpoints
     @POST("authorizations")

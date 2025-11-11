@@ -8,6 +8,20 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <Button
+        android:id="@+id/start_scan_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_margin="24dp"
+        android:text="Start Scan"
+        android:textColor="@android:color/white"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:background="@drawable/gradient_button"
+        android:padding="16dp"
+        android:visibility="visible" />
+
     <!-- Test Mode Button (visible for emulator, hide for production) -->
     <Button
         android:id="@+id/test_mode_button"

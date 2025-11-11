@@ -19,7 +19,7 @@ class Settings(BaseSettings):
 
     # API
     API_HOST: str = "0.0.0.0"
-    API_PORT: int = 8000
+    API_PORT: int = 9999
     API_DEBUG: bool = True
     API_TITLE: str = "RemoteLED API"
     API_VERSION: str = "1.0.0"
@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     ENABLE_MOCK_PAYMENT: bool = True
 
     # Stripe Configuration
-    STRIPE_SECRET_KEY: str = "sk_test_51RvLnsAB4ekTdIMhtkP1rnRTQXhGV3ddiiZMQWeSK4JEKHWED5Z5igrESxWcnrRY6RE8gfkLS06h4EM2kIfV2qGm003uGLXHyN"
+    STRIPE_SECRET_KEY: str = ""  # Provide via environment (.env) for each environment
 
     # LED GPIO Configuration (BCM numbering)
     # Unified pin mapping for all LED control implementations

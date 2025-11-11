@@ -236,51 +236,28 @@ public class MainActivity extends AppCompatActivity {
         if (intent != null && intent.getAction() != null && intent.getAction().equals(Intent.ACTION_VIEW)) {
             Uri data = intent.getData();
             if (data != null) {
-                String scheme = data.getScheme();
-                String macAddress = null;
-                String serviceUUID = null;
-                String characteristicUUID = null;
-
-                // Handle HTTPS URLs: https://your-api.com/detail?machineId=XXX&mac=YYY&service=7514&char=DE40&key=9F64
-                if ("https".equals(scheme) || "http".equals(scheme)) {
-                    Log.d(TAG, "Processing HTTPS deep link: " + data.toString());
-
-                    // Parse query parameters
-                    macAddress = data.getQueryParameter("mac");
-                    String shortServiceUUID = data.getQueryParameter("service");
-                    String shortCharUUID = data.getQueryParameter("char");
-                    bleKey = data.getQueryParameter("key");
-                    String machineId = data.getQueryParameter("machineId");
-
-                    // Convert short UUIDs to full format
-                    if (shortServiceUUID != null) {
-                        serviceUUID = "0000" + shortServiceUUID + "-0000-1000-8000-00805f9b34fb";
-                    }
-                    if (shortCharUUID != null) {
-                        characteristicUUID = "0000" + shortCharUUID + "-0000-1000-8000-00805f9b34fb";
-                    }
-
-                    // Store machineId if provided
-                    if (machineId != null && !machineId.isEmpty()) {
-                        scannedDeviceId = machineId;
-                    }
-
-                    Log.d(TAG, "Parsed HTTPS URL - MAC: " + macAddress + ", Service: " + serviceUUID + ", Char: " + characteristicUUID + ", Key: " + bleKey);
+                String macAddress = data.getPathSegments().get(0);
+                String serviceUUID = "0000"+data.getPathSegments().get(1)+"-0000-1000-8000-00805f9b34fb";
+                String characteristicUUID = "0000"+data.getPathSegments().get(2)+"-0000-1000-8000-00805f9b34fb";
+                bleKey = data.getPathSegments().get(3);
+                // Optional deviceId query parameter from QR
+                String qpDeviceId = data.getQueryParameter("deviceId");
+                if (qpDeviceId != null && !qpDeviceId.isEmpty()) {
+                    scannedDeviceId = qpDeviceId;
                 }
-                // Handle legacy remoteled:// URLs: remoteled://connect/{mac}/{service}/{char}/{key}
-                else if ("remoteled".equals(scheme)) {
-                    Log.d(TAG, "Processing remoteled:// deep link: " + data.toString());
 
-                    macAddress = data.getPathSegments().get(0);
-                    serviceUUID = "0000" + data.getPathSegments().get(1) + "-0000-1000-8000-00805f9b34fb";
-                    characteristicUUID = "0000" + data.getPathSegments().get(2) + "-0000-1000-8000-00805f9b34fb";
-                    bleKey = data.getPathSegments().get(3);
-
-                    // Optional deviceId query parameter from QR
-                    String qpDeviceId = data.getQueryParameter("deviceId");
-                    if (qpDeviceId != null && !qpDeviceId.isEmpty()) {
-                        scannedDeviceId = qpDeviceId;
+                if (BuildConfig.DEMO_MODE || BuildConfig.DEBUG) {
+                    if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
+                        Log.d(TAG, "Demo mode enabled; skipping BLE and launching product selection for " + scannedDeviceId);
+                        Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
+                        i.putExtra("DEVICE_ID", scannedDeviceId);
+                        startActivity(i);
+                        finish();
+                        return;
+                    } else {
+                        Log.w(TAG, "Demo mode skip requested but deviceId missing");
                     }
+                }
 
                     Log.d(TAG, "Parsed remoteled URL - MAC: " + macAddress + ", Service: " + serviceUUID + ", Char: " + characteristicUUID + ", Key: " + bleKey);
                 }
@@ -365,7 +342,7 @@ public class MainActivity extends AppCompatActivity {
                         updateConnectionStatus("Characteristic found");
                         enableControlButtons(true); // handshake complete
                         // If we came from QR and have a deviceId, navigate into app flow
-                        if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
+                        if (!BuildConfig.DEMO_MODE && scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
                             runOnUiThread(() -> {
                                 Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
                                 i.putExtra("DEVICE_ID", scannedDeviceId);
