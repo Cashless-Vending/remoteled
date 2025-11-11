@@ -165,6 +165,8 @@ class StripePaymentTriggerRequest(BaseModel):
     device_id: str  # Which Pi device to trigger LED on
     description: Optional[str] = None
     duration_seconds: Optional[int] = 3  # How long to keep LED on
+    order_id: Optional[str] = None  # Associated order (optional)
+    skip_led: Optional[bool] = False  # Allow skipping BLE during tests
 
 
 class StripePaymentTriggerResponse(BaseModel):

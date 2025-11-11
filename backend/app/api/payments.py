@@ -183,7 +183,10 @@ def get_customer_stripe_orders(
 # ============================================================================
 
 @router.post("/stripe/payment-and-trigger", response_model=StripePaymentTriggerResponse)
-async def create_payment_and_trigger_led(payment_req: StripePaymentTriggerRequest):
+async def create_payment_and_trigger_led(
+    payment_req: StripePaymentTriggerRequest,
+    cursor: RealDictCursor = Depends(get_db)
+):
     """
     Create Stripe payment and trigger LED on Pi device via BLE
 
@@ -212,12 +215,17 @@ async def create_payment_and_trigger_led(payment_req: StripePaymentTriggerReques
             "amount": payment_req.amount_cents,
             "currency": "usd",
             "description": payment_req.description or f"Payment for device {payment_req.device_id}",
-            "metadata": {"device_id": payment_req.device_id},
+            "metadata": {
+                "device_id": payment_req.device_id
+            },
             "automatic_payment_methods": {
                 "enabled": True,
                 "allow_redirects": "never"  # No redirects for vending machine use case
             }
         }
+
+        if payment_req.order_id:
+            payment_params["metadata"]["order_id"] = payment_req.order_id
 
         # Only add customer if provided
         if payment_req.customer_id:
@@ -251,21 +259,25 @@ async def create_payment_and_trigger_led(payment_req: StripePaymentTriggerReques
         print(f"\n[Payment+LED] 🎨 LED Color Decision: {led_color.upper()} (based on status: {payment_intent.status})")
         print(f"[Payment+LED] 💡 Now triggering BLE LED on device {payment_req.device_id}...")
         print(f"{'='*60}")
-        led_success = await led_handler.trigger_led(
-            color=led_color,
-            duration=payment_req.duration_seconds
-        )
-        led_triggered = led_success
+        if payment_req.skip_led:
+            print("[Payment+LED] ⚙️  Skip LED flag set — not triggering BLE for this request.")
+            led_triggered = False
+        else:
+            led_success = await led_handler.trigger_led(
+                color=led_color,
+                duration=payment_req.duration_seconds
+            )
+            led_triggered = led_success
 
         print(f"{'='*60}")
-        if led_success:
+        if led_triggered:
             print(f"[Payment+LED] SUCCESS! LED triggered successfully")
         else:
-            print(f"[Payment+LED] LED trigger failed (expected without Pi hardware)")
+            print(f"[Payment+LED] LED trigger skipped or failed (expected without Pi hardware)")
         print(f"{'='*60}\n")
 
         # Step 5: Return response
-        return StripePaymentTriggerResponse(
+        response = StripePaymentTriggerResponse(
             payment_intent_id=payment_intent.id,
             amount_cents=payment_intent.amount,
             payment_status=payment_intent.status,
@@ -276,6 +288,18 @@ async def create_payment_and_trigger_led(payment_req: StripePaymentTriggerReques
             created_at=payment_intent.created
         )
 
+        if payment_req.order_id and payment_intent.status == "succeeded":
+            cursor.execute(
+                """
+                UPDATE orders
+                SET status = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                ("PAID", payment_req.order_id)
+            )
+
+        return response
+
     except stripe.StripeError as e:
         print(f"[Payment+LED] Stripe error: {e}")
         # Even if payment fails, try to trigger red LED
@@ -285,6 +309,15 @@ async def create_payment_and_trigger_led(payment_req: StripePaymentTriggerReques
         except Exception as led_error:
             print(f"[Payment+LED] LED trigger also failed: {led_error}")
 
+        if payment_req.order_id:
+            cursor.execute(
+                """
+                UPDATE orders
+                SET status = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                ("FAILED", payment_req.order_id)
+            )
         raise HTTPException(status_code=400, detail=f"Stripe error: {str(e)}")
 
     except Exception as e:
