@@ -5,6 +5,10 @@ import threading
 import time
 from bluezero import adapter, peripheral
 from led_service import LEDService
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Initialize LED service
 led_service = LEDService()
@@ -21,7 +25,7 @@ CHAR_UUID = f'0000{SHORT_CHAR_UUID}-0000-1000-8000-00805f9b34fb'
 # Machine configuration
 MACHINE_ID = os.getenv('MACHINE_ID', 'UNKNOWN')
 DEVICE_ID = os.getenv('DEVICE_ID', 'd1111111-1111-1111-1111-111111111111')  # Default to Laundry Room A test device
-API_BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:9999')
+API_BASE_URL = os.getenv('API_BASE_URL', 'http://192.168.1.102:8000')
 
 # Global state for the LED and BLE characteristics
 led_state = 'off'
@@ -123,21 +127,18 @@ class LEDController:
 
 def generate_deep_link(adapter_address, service_uuid, char_uuid, ble_key, device_id=None):
     """
-    Generate QR code with device UUID.
-    Android app expects just the device UUID or remoteled://device/{uuid} format.
-    User scans QR -> Android app extracts UUID -> Fetches device info from backend -> Payment flow
+    Generate cloud API URL for QR code.
+    The URL points to the FastAPI backend's /detail endpoint which will handle the payment/product details.
+    User scans QR -> Android app opens URL via deep link -> Extracts BLE params -> Connects to device
     """
     global WEB_MESSAGE
 
-    # Use DEVICE_ID environment variable or fall back to MACHINE_ID
-    uuid = device_id or os.getenv('DEVICE_ID') or MACHINE_ID
+    # Build cloud API URL with all BLE connection parameters
+    detail_url = f"{API_BASE_URL}/detail?machineId={device_id or MACHINE_ID}&mac={adapter_address}&service={service_uuid}&char={char_uuid}&key={ble_key}"
 
-    # Generate simple UUID QR code (Android app accepts plain UUID)
-    qr_content = uuid
-
-    WEB_MESSAGE = qr_content
-    print(f"Generated QR code with Device UUID: {qr_content}")
-    publish_qr_code(qr_content)
+    WEB_MESSAGE = detail_url
+    print(f"Generated Detail URL: {detail_url}")
+    publish_qr_code(detail_url)
 
 
 def setup_peripheral(adapter_address, just_char=True):
