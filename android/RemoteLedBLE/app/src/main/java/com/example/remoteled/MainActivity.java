@@ -259,11 +259,11 @@ public class MainActivity extends AppCompatActivity {
                     }
                 }
 
-                    Log.d(TAG, "Parsed remoteled URL - MAC: " + macAddress + ", Service: " + serviceUUID + ", Char: " + characteristicUUID + ", Key: " + bleKey);
-                }
+                Log.d(TAG, "Parsed remoteled URL - MAC: " + macAddress + ", Service: " + serviceUUID + ", Char: " + characteristicUUID + ", Key: " + bleKey);
 
                 // TEMPORARY: Bypass BLE connection, just open the URL in browser
                 // TODO: Re-enable BLE connection after testing API endpoint
+                String scheme = data.getScheme();
                 if ("https".equals(scheme) || "http".equals(scheme)) {
                     Log.d(TAG, "BYPASS MODE: Opening URL in browser instead of BLE connection");
                     Toast.makeText(this, "Opening detail page...", Toast.LENGTH_SHORT).show();
