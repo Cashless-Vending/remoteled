@@ -52,10 +52,15 @@ dependencies {
     implementation(libs.cardview)
     implementation(libs.recyclerview)
     
-    // QR Code Scanner
-    implementation(libs.zxing.android.embedded)
-    implementation(libs.core)
-    
+    // QR Code Scanner - ML Kit Barcode Scanning (Bundled)
+    implementation(libs.barcode.scanning)
+
+    // CameraX for camera preview
+    implementation(libs.camerax.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.view)
+
     // Networking - Retrofit + OkHttp
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
