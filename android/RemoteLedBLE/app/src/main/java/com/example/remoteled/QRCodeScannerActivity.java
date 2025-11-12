@@ -178,7 +178,7 @@ public class QRCodeScannerActivity extends AppCompatActivity {
         // Prevent multiple scans
         isProcessing = true;
 
-        // Accept either device UUID QR or remoteled://connect deep link
+        // Accept remoteled://connect deep link
         if (qrCodeContent.startsWith("remoteled://connect/")) {
             try {
                 android.net.Uri uri = android.net.Uri.parse(qrCodeContent);
@@ -190,6 +190,24 @@ public class QRCodeScannerActivity extends AppCompatActivity {
                 isProcessing = false;
             }
             return;
+        }
+
+        // Accept HTTP deep link (new format)
+        if (qrCodeContent.startsWith("http://") || qrCodeContent.startsWith("https://")) {
+            try {
+                android.net.Uri uri = android.net.Uri.parse(qrCodeContent);
+                // Check if this is a /detail deep link
+                if (uri.getPath() != null && uri.getPath().equals("/detail")) {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, uri, this, MainActivity.class);
+                    startActivity(intent);
+                    finish();
+                    return;
+                }
+            } catch (Exception e) {
+                Toast.makeText(this, "Invalid URL format", Toast.LENGTH_SHORT).show();
+                isProcessing = false;
+                return;
+            }
         }
 
         // Fallback: extract device UUID QR
