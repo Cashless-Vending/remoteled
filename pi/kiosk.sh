@@ -1,1 +1,1 @@
-chromium-browser http://localhost --kiosk --noerrdialogs --disable-infobars --no-first-run --ozone-platform=wayland --enable-features=OverlayScrollbar --start-maximized --password-store=basic --disable-session-crashed-bubble --disable-features=TranslateUI
+chromium-browser http://localhost/ --kiosk --noerrdialogs --disable-infobars --no-first-run --ozone-platform=wayland --enable-features=OverlayScrollbar --start-maximized --password-store=basic --disable-session-crashed-bubble --disable-features=TranslateUI

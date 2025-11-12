@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables"""
 
     # Database
-    DATABASE_URL: str = "postgresql://localhost:5432/remoteled"
+    DATABASE_URL: str = "postgresql://remoteled:remoteled_dev_password@localhost:5432/remoteled"
 
     # BLE Configuration
     BLE_SERVICE_UUID: str = "000088F4-0000-1000-8000-00805f9b34fb"
