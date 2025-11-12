@@ -5,8 +5,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Size;
-import android.widget.Button;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -42,20 +40,10 @@ public class QRCodeScannerActivity extends AppCompatActivity {
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
     private PreviewView previewView;
     private TextView statusText;
-    private ProgressBar loadingIndicator;
-    private Button testModeButton;
 
     private ExecutorService cameraExecutor;
     private BarcodeScanner barcodeScanner;
     private boolean isProcessing = false;
-
-    // Test device IDs
-    private static final String[] TEST_DEVICES = {
-        "d1111111-1111-1111-1111-111111111111",
-        "d2222222-2222-2222-2222-222222222222",
-        "d3333333-3333-3333-3333-333333333333",
-        "d4444444-4444-4444-4444-444444444444"
-    };
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,14 +52,10 @@ public class QRCodeScannerActivity extends AppCompatActivity {
 
         previewView = findViewById(R.id.preview_view);
         statusText = findViewById(R.id.status_text);
-        loadingIndicator = findViewById(R.id.loading_indicator);
-        testModeButton = findViewById(R.id.test_mode_button);
-
-        testModeButton.setVisibility(android.view.View.GONE);
 
         cameraExecutor = Executors.newSingleThreadExecutor();
 
-        // Initialize ML Kit Barcode Scanner (bundled - no download needed!)
+        // Initialize ML Kit Barcode Scanner (bundled)
         BarcodeScannerOptions options = new BarcodeScannerOptions.Builder()
             .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
             .build();

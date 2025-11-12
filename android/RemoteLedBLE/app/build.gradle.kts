@@ -14,11 +14,9 @@ android {
         versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        
+
         // API Base URL
         buildConfigField("String", "API_BASE_URL", "\"http://10.41.121.73:9999\"")
-        // Demo flag: when true, skip network and drive mock flow
-        buildConfigField("boolean", "DEMO_MODE", "false")
     }
 
     buildTypes {
