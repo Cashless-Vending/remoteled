@@ -30,28 +30,4 @@
 
     </LinearLayout>
 
-    <!-- Loading indicator -->
-    <ProgressBar
-        android:id="@+id/loading_indicator"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_centerInParent="true"
-        android:visibility="gone"
-        android:indeterminate="true" />
-
-    <!-- Test Mode Button (hidden by default) -->
-    <Button
-        android:id="@+id/test_mode_button"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentBottom="true"
-        android:layout_margin="24dp"
-        android:text="🧪 Test Mode"
-        android:textColor="@android:color/white"
-        android:textSize="16sp"
-        android:textStyle="bold"
-        android:background="@drawable/gradient_button"
-        android:padding="16dp"
-        android:visibility="gone" />
-
 </RelativeLayout>
