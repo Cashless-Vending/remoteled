@@ -20,7 +20,8 @@ CHAR_UUID = f'0000{SHORT_CHAR_UUID}-0000-1000-8000-00805f9b34fb'
 
 # Machine configuration
 MACHINE_ID = os.getenv('MACHINE_ID', 'UNKNOWN')
-API_BASE_URL = os.getenv('API_BASE_URL', 'http://10.0.2.2:8000')
+DEVICE_ID = os.getenv('DEVICE_ID', 'd1111111-1111-1111-1111-111111111111')  # Default to Laundry Room A test device
+API_BASE_URL = os.getenv('API_BASE_URL', 'http://localhost:9999')
 
 # Global state for the LED and BLE characteristics
 led_state = 'off'
@@ -34,6 +35,7 @@ print(f"[BLE Config] Service UUID: {SERVICE_UUID}")
 print(f"[BLE Config] Char UUID: {CHAR_UUID}")
 print(f"[BLE Config] BLE Key: {BLE_KEY}")
 print(f"[Machine Config] Machine ID: {MACHINE_ID}")
+print(f"[Machine Config] Device ID: {DEVICE_ID}")
 print(f"[Machine Config] API Base URL: {API_BASE_URL}")
 
 
@@ -121,18 +123,21 @@ class LEDController:
 
 def generate_deep_link(adapter_address, service_uuid, char_uuid, ble_key, device_id=None):
     """
-    Generate cloud API URL for QR code.
-    The URL points to the FastAPI backend which will handle the payment/product details.
-    User scans QR -> Opens URL in browser -> Cloud API handles transaction -> Sends BLE command to Pi
+    Generate QR code with device UUID.
+    Android app expects just the device UUID or remoteled://device/{uuid} format.
+    User scans QR -> Android app extracts UUID -> Fetches device info from backend -> Payment flow
     """
     global WEB_MESSAGE
 
-    # Build cloud API URL with all BLE connection parameters
-    detail_url = f"{API_BASE_URL}/detail?machineId={device_id or MACHINE_ID}&mac={adapter_address}&service={service_uuid}&char={char_uuid}&key={ble_key}"
+    # Use DEVICE_ID environment variable or fall back to MACHINE_ID
+    uuid = device_id or os.getenv('DEVICE_ID') or MACHINE_ID
 
-    WEB_MESSAGE = detail_url
-    print(f"Generated Detail URL: {detail_url}")
-    publish_qr_code(detail_url)
+    # Generate simple UUID QR code (Android app accepts plain UUID)
+    qr_content = uuid
+
+    WEB_MESSAGE = qr_content
+    print(f"Generated QR code with Device UUID: {qr_content}")
+    publish_qr_code(qr_content)
 
 
 def setup_peripheral(adapter_address, just_char=True):
@@ -177,9 +182,6 @@ def main(adapter_address, device_id=None):
         print(f"[Pi] Using DEVICE_ID for deep link generation: {device_id}")
     else:
         print("[Pi] DEVICE_ID not provided; deep link will omit deviceId query parameter")
-    
-    # Generate initial UUIDs for the service and characteristic
-    generate_new_uuids(False)
 
     # Setup the initial Bluezero Peripheral
     current_peripheral = setup_peripheral(adapter_address,False)
