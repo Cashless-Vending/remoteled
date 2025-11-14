@@ -131,6 +131,24 @@ If your phone runs an older Android version, lower `minSdk` in `android/RemoteLe
 - Prefer Node: `sudo systemctl enable --now remoteled-node && sudo systemctl disable --now remoteled-python`
 - Prefer Python: `sudo systemctl enable --now remoteled-python && sudo systemctl disable --now remoteled-node`
 
+### Rapid Pi + Backend test loop
+For the exact workflow documented in `~/Downloads/pi_ble_qr_setup.txt`, use the following checklist whenever you need to validate the entire BLE/QR flow quickly:
+
+1. **Start the backend on your Mac**
+   - From the repo root: `cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 9999`
+   - Keep it running and confirm `http://192.168.1.158:9999/health` responds.
+
+2. **Launch the Pi BLE peripheral**
+   - On the Pi: `cd ~/Documents/remoteled/pi/python && ./start.sh`
+   - The script reads `/usr/local/remoteled/device_id`, activates `venv/`, and runs `code.py`.
+   - Watch the terminal for `[BLE Debug] Detail URL ready for kiosk: http://192.168.1.158:9999/detail?...` and “Advertisement registered”.
+
+3. **Refresh the kiosk view**
+   - On the Pi desktop press `F5` in Chromium (already pointed at `http://localhost`), or run `bash ~/Documents/remoteled/pi/kiosk.sh` to relaunch kiosk mode.
+
+4. **Scan the QR from Android**
+   - Once the QR is visible, scan it with the Android app. If the kiosk ever sticks on `CONNECTED!`, press `Ctrl+C` in the Pi terminal, rerun `./start.sh`, and refresh Chromium again.
+
 ## Quick Start (Android)
 - Build from source: open `android/RemoteLedBLE` in Android Studio and run on a device (Android 14+ as configured).
 - Or install the included debug APK: `remoteled.apk` (for local testing only; rebuild your own for distribution).

@@ -21,7 +21,6 @@ ecdsa==0.18.0
 cryptography==41.0.7
 
 # Payments
-stripe==5.4.0
 
 # Authentication
 passlib[bcrypt]==1.7.4
@@ -43,4 +42,3 @@ bleak==0.22.3
 # Testing (optional)
 pytest==7.4.3
 httpx==0.25.2
-

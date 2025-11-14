@@ -25,7 +25,8 @@ CHAR_UUID = f'0000{SHORT_CHAR_UUID}-0000-1000-8000-00805f9b34fb'
 # Machine configuration
 MACHINE_ID = os.getenv('MACHINE_ID', 'UNKNOWN')
 DEVICE_ID = os.getenv('DEVICE_ID', 'd1111111-1111-1111-1111-111111111111')  # Default to Laundry Room A test device
-API_BASE_URL = os.getenv('API_BASE_URL', 'http://192.168.1.102:8000')
+# Backend on Mac (update if host IP changes)
+API_BASE_URL = os.getenv('API_BASE_URL', 'http://192.168.1.158:9999')
 
 # Global state for the LED and BLE characteristics
 led_state = 'off'

@@ -17,6 +17,7 @@ okhttp = "4.12.0"
 glide = "4.16.0"
 cardview = "1.0.0"
 recyclerview = "1.3.2"
+cameraView = "1.5.1"
 
 [libraries]
 junit = { group = "junit", name = "junit", version.ref = "junit" }
@@ -41,6 +42,7 @@ okhttp-logging = { group = "com.squareup.okhttp3", name = "logging-interceptor",
 glide = { group = "com.github.bumptech.glide", name = "glide", version.ref = "glide" }
 cardview = { group = "androidx.cardview", name = "cardview", version.ref = "cardview" }
 recyclerview = { group = "androidx.recyclerview", name = "recyclerview", version.ref = "recyclerview" }
+camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "cameraView" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

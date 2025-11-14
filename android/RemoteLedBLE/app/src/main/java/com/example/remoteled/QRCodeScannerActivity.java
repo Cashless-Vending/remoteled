@@ -5,12 +5,13 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.util.Size;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.StringRes;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.camera.core.Camera;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageAnalysis;
 import androidx.camera.core.ImageProxy;
@@ -20,7 +21,6 @@ import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import com.google.android.gms.tasks.Task;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mlkit.vision.barcode.BarcodeScanner;
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions;
@@ -38,12 +38,20 @@ import java.util.regex.Pattern;
 public class QRCodeScannerActivity extends AppCompatActivity {
 
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
+    private static final String LOG_TAG = "QRScanner";
+
     private PreviewView previewView;
     private TextView statusText;
+    private Button startScanButton;
+    private Button stopScanButton;
 
     private ExecutorService cameraExecutor;
     private BarcodeScanner barcodeScanner;
     private boolean isProcessing = false;
+    private boolean hasCameraPermission = false;
+    private boolean cameraStarted = false;
+    private boolean pendingStartAfterPermission = false;
+    private ProcessCameraProvider cameraProvider;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -52,6 +60,10 @@ public class QRCodeScannerActivity extends AppCompatActivity {
 
         previewView = findViewById(R.id.preview_view);
         statusText = findViewById(R.id.status_text);
+        startScanButton = findViewById(R.id.start_scan_button);
+        stopScanButton = findViewById(R.id.stop_scan_button);
+
+        statusText.setText(R.string.scan_status_idle);
 
         cameraExecutor = Executors.newSingleThreadExecutor();
 
@@ -61,15 +73,52 @@ public class QRCodeScannerActivity extends AppCompatActivity {
             .build();
         barcodeScanner = BarcodeScanning.getClient(options);
 
-        // Check camera permission
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                == PackageManager.PERMISSION_GRANTED) {
-            startCamera();
-        } else {
+        hasCameraPermission = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED;
+
+        startScanButton.setOnClickListener(v -> handleStartScanButtonClick());
+        stopScanButton.setOnClickListener(v -> handleStopScanButtonClick());
+        updateStartButtonState(true, R.string.scan_qr_button);
+        updateStopButtonState(false);
+
+        if (!hasCameraPermission) {
             ActivityCompat.requestPermissions(this,
                 new String[]{Manifest.permission.CAMERA},
                 CAMERA_PERMISSION_REQUEST_CODE);
         }
+    }
+
+    private void handleStartScanButtonClick() {
+        android.util.Log.d(LOG_TAG, "Start Scan button tapped (cameraStarted=" + cameraStarted + ")");
+        if (cameraStarted) {
+            statusText.setText(R.string.scan_status_scanning);
+            return;
+        }
+
+        if (!hasCameraPermission) {
+            pendingStartAfterPermission = true;
+            ActivityCompat.requestPermissions(this,
+                new String[]{Manifest.permission.CAMERA},
+                CAMERA_PERMISSION_REQUEST_CODE);
+            return;
+        }
+
+        beginCameraScan();
+    }
+
+    private void handleStopScanButtonClick() {
+        android.util.Log.d(LOG_TAG, "Stop Scan button tapped (cameraStarted=" + cameraStarted + ")");
+        if (!cameraStarted) {
+            statusText.setText(R.string.scan_status_idle);
+            return;
+        }
+        stopCamera("User tapped Stop");
+    }
+
+    private void beginCameraScan() {
+        pendingStartAfterPermission = false;
+        updateStartButtonState(false, R.string.scan_qr_button_scanning);
+        startCamera();
     }
 
     private void startCamera() {
@@ -78,11 +127,14 @@ public class QRCodeScannerActivity extends AppCompatActivity {
 
         cameraProviderFuture.addListener(() -> {
             try {
-                ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
+                cameraProvider = cameraProviderFuture.get();
                 bindCameraUseCases(cameraProvider);
             } catch (ExecutionException | InterruptedException e) {
                 android.util.Log.e("QRScanner", "Error starting camera", e);
                 Toast.makeText(this, "Failed to start camera", Toast.LENGTH_SHORT).show();
+                cameraStarted = false;
+                updateStartButtonState(true, R.string.scan_qr_button_retry);
+                updateStopButtonState(false);
             }
         }, ContextCompat.getMainExecutor(this));
     }
@@ -110,31 +162,38 @@ public class QRCodeScannerActivity extends AppCompatActivity {
             cameraProvider.unbindAll();
 
             // Bind use cases to camera
-            Camera camera = cameraProvider.bindToLifecycle(
+            cameraProvider.bindToLifecycle(
                 this,
                 cameraSelector,
                 preview,
                 imageAnalysis
             );
 
-            statusText.setText("Point camera at QR code");
+            cameraStarted = true;
+            statusText.setText(R.string.scan_status_point_camera);
+            updateStopButtonState(true);
             android.util.Log.d("QRScanner", "Camera started successfully");
 
         } catch (Exception e) {
             android.util.Log.e("QRScanner", "Camera binding failed", e);
             Toast.makeText(this, "Camera binding failed", Toast.LENGTH_SHORT).show();
+            cameraStarted = false;
+            updateStartButtonState(true, R.string.scan_qr_button_retry);
+            updateStopButtonState(false);
         }
     }
 
     @androidx.camera.core.ExperimentalGetImage
     private void processImageProxy(ImageProxy imageProxy) {
         if (isProcessing) {
+            android.util.Log.v(LOG_TAG, "Skipping frame because another is processing");
             imageProxy.close();
             return;
         }
 
         android.media.Image mediaImage = imageProxy.getImage();
         if (mediaImage == null) {
+            android.util.Log.w(LOG_TAG, "ImageProxy returned null mediaImage");
             imageProxy.close();
             return;
         }
@@ -145,9 +204,12 @@ public class QRCodeScannerActivity extends AppCompatActivity {
         );
 
         isProcessing = true;
+        android.util.Log.v(LOG_TAG, "Submitting frame to ML Kit (rotation=" +
+            imageProxy.getImageInfo().getRotationDegrees() + ")");
 
         barcodeScanner.process(image)
             .addOnSuccessListener(barcodes -> {
+                android.util.Log.v(LOG_TAG, "ML Kit returned " + barcodes.size() + " barcodes");
                 if (!barcodes.isEmpty()) {
                     handleBarcodes(barcodes);
                 }
@@ -177,6 +239,7 @@ public class QRCodeScannerActivity extends AppCompatActivity {
     private void processQRCode(String qrCodeContent) {
         // Prevent multiple scans
         isProcessing = true;
+        statusText.setText(R.string.scan_status_scanning);
 
         // Accept remoteled://connect deep link
         if (qrCodeContent.startsWith("remoteled://connect/")) {
@@ -266,18 +329,63 @@ public class QRCodeScannerActivity extends AppCompatActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCamera();
+                hasCameraPermission = true;
+                Toast.makeText(this,
+                    R.string.scan_permission_granted,
+                    Toast.LENGTH_SHORT).show();
+                if (pendingStartAfterPermission) {
+                    beginCameraScan();
+                }
             } else {
                 Toast.makeText(this,
                     "Camera permission is required to scan QR codes",
                     Toast.LENGTH_LONG).show();
+                updateStartButtonState(true, R.string.scan_qr_button);
+                updateStopButtonState(false);
             }
         }
+    }
+
+    private void stopCamera(String reason) {
+        if (cameraProvider != null) {
+            cameraProvider.unbindAll();
+        }
+        cameraStarted = false;
+        isProcessing = false;
+        pendingStartAfterPermission = false;
+        statusText.setText(R.string.scan_status_stopped);
+        updateStartButtonState(true, R.string.scan_qr_button);
+        updateStopButtonState(false);
+        android.util.Log.d(LOG_TAG, "Camera scan stopped: " + reason);
+    }
+
+    private void updateStartButtonState(boolean enabled, @StringRes int labelRes) {
+        if (startScanButton == null) {
+            return;
+        }
+        runOnUiThread(() -> {
+            startScanButton.setEnabled(enabled);
+            startScanButton.setAlpha(enabled ? 1f : 0.6f);
+            startScanButton.setText(labelRes);
+        });
+    }
+
+    private void updateStopButtonState(boolean enabled) {
+        if (stopScanButton == null) {
+            return;
+        }
+        runOnUiThread(() -> {
+            stopScanButton.setEnabled(enabled);
+            stopScanButton.setAlpha(enabled ? 1f : 0.6f);
+        });
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        if (cameraStarted) {
+            stopCamera("Activity destroyed");
+        }
         if (cameraExecutor != null) {
             cameraExecutor.shutdown();
         }
