@@ -221,31 +221,52 @@ public class MainActivity extends AppCompatActivity {
         if (intent != null && intent.getAction() != null && intent.getAction().equals(Intent.ACTION_VIEW)) {
             Uri data = intent.getData();
             if (data != null) {
-                String macAddress = data.getPathSegments().get(0);
-                String serviceUUID = "0000"+data.getPathSegments().get(1)+"-0000-1000-8000-00805f9b34fb";
-                String characteristicUUID = "0000"+data.getPathSegments().get(2)+"-0000-1000-8000-00805f9b34fb";
-                bleKey = data.getPathSegments().get(3);
-                // Optional deviceId query parameter from QR
-                String qpDeviceId = data.getQueryParameter("deviceId");
-                if (qpDeviceId != null && !qpDeviceId.isEmpty()) {
-                    scannedDeviceId = qpDeviceId;
-                }
+                String macAddress = null;
+                String serviceUUID = null;
+                String characteristicUUID = null;
 
-                if (BuildConfig.DEMO_MODE || BuildConfig.DEBUG) {
-                    if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
-                        Log.d(TAG, "Demo mode enabled; skipping BLE and launching product selection for " + scannedDeviceId);
-                        Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
-                        i.putExtra("DEVICE_ID", scannedDeviceId);
-                        startActivity(i);
-                        finish();
-                        return;
-                    } else {
-                        Log.w(TAG, "Demo mode skip requested but deviceId missing");
+                // Check if this is the new HTTP URL format with query parameters
+                if (data.getPath() != null && data.getPath().equals("/detail")) {
+                    // New format: http://host/detail?machineId=X&mac=X&service=X&char=X&key=X
+                    macAddress = data.getQueryParameter("mac");
+                    String serviceShort = data.getQueryParameter("service");
+                    String charShort = data.getQueryParameter("char");
+                    bleKey = data.getQueryParameter("key");
+                    String qpDeviceId = data.getQueryParameter("machineId");
+
+                    if (serviceShort != null) {
+                        serviceUUID = "0000" + serviceShort + "-0000-1000-8000-00805f9b34fb";
                     }
+                    if (charShort != null) {
+                        characteristicUUID = "0000" + charShort + "-0000-1000-8000-00805f9b34fb";
+                    }
+                    if (qpDeviceId != null && !qpDeviceId.isEmpty()) {
+                        scannedDeviceId = qpDeviceId;
+                    }
+
+                    Log.d(TAG, "Parsed HTTP detail URL - MAC: " + macAddress + ", Service: " + serviceUUID + ", Char: " + characteristicUUID + ", Key: " + bleKey + ", MachineId: " + scannedDeviceId);
+                } else if (data.getPathSegments().size() >= 4) {
+                    // Old format: remoteled://connect/{mac}/{service}/{char}/{key}
+                    macAddress = data.getPathSegments().get(0);
+                    serviceUUID = "0000" + data.getPathSegments().get(1) + "-0000-1000-8000-00805f9b34fb";
+                    characteristicUUID = "0000" + data.getPathSegments().get(2) + "-0000-1000-8000-00805f9b34fb";
+                    bleKey = data.getPathSegments().get(3);
+                    // Optional deviceId query parameter from QR
+                    String qpDeviceId = data.getQueryParameter("deviceId");
+                    if (qpDeviceId != null && !qpDeviceId.isEmpty()) {
+                        scannedDeviceId = qpDeviceId;
+                    }
+
+                    Log.d(TAG, "Parsed remoteled URL - MAC: " + macAddress + ", Service: " + serviceUUID + ", Char: " + characteristicUUID + ", Key: " + bleKey);
                 }
 
-                // Connect to the BLE device
-                connectToDevice(macAddress, UUID.fromString(serviceUUID), UUID.fromString(characteristicUUID));
+                // Connect via BLE
+                if (macAddress != null && serviceUUID != null && characteristicUUID != null && bleKey != null) {
+                    connectToDevice(macAddress, UUID.fromString(serviceUUID), UUID.fromString(characteristicUUID));
+                } else {
+                    Log.e(TAG, "Missing required BLE parameters from deep link");
+                    Toast.makeText(this, "Invalid QR code format", Toast.LENGTH_SHORT).show();
+                }
             }
         }
     }
@@ -307,7 +328,7 @@ public class MainActivity extends AppCompatActivity {
                         updateConnectionStatus("Characteristic found");
                         enableControlButtons(true); // handshake complete
                         // If we came from QR and have a deviceId, navigate into app flow
-                        if (!BuildConfig.DEMO_MODE && scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
+                        if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
                             runOnUiThread(() -> {
                                 Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
                                 i.putExtra("DEVICE_ID", scannedDeviceId);

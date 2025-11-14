@@ -1,6 +1,15 @@
 <resources>
     <string name="app_name">Remote Led</string>
     <string name="action_settings">Settings</string>
+    <string name="scan_qr_button">Start Scan</string>
+    <string name="stop_qr_button">Stop Scan</string>
+    <string name="scan_qr_button_scanning">Scanning...</string>
+    <string name="scan_qr_button_retry">Try scanning again</string>
+    <string name="scan_status_scanning">Scanning for device...</string>
+    <string name="scan_status_idle">Tap Start to scan a QR code.</string>
+    <string name="scan_status_point_camera">Point camera at QR code</string>
+    <string name="scan_status_stopped">Scan stopped. Tap Start to scan again.</string>
+    <string name="scan_permission_granted">Camera permission granted. Tap Scan to begin.</string>
     <!-- Strings used for fragments for navigation -->
     <string name="first_fragment_label">First Fragment</string>
     <string name="second_fragment_label">Second Fragment</string>
