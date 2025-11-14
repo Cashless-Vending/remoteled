@@ -12,9 +12,34 @@ from app.models.schemas import (
 )
 from app.core import payment_handler
 from app.core import led_handler
+from app.core.config import settings
 import stripe
 
 router = APIRouter(prefix="/payments", tags=["payments"])
+
+
+def ensure_stripe_configured():
+    """Raise an HTTP error if the Stripe secret key is missing"""
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Stripe secret key is not configured. "
+                   "Set STRIPE_SECRET_KEY in your environment (.env) with an sk_test... value."
+        )
+
+
+# ============================================================================
+# STRIPE CONFIG ROUTE
+# ============================================================================
+
+@router.get("/stripe/config")
+def get_stripe_config():
+    """Expose Stripe publishable key + status for clients"""
+    return {
+        "publishable_key": settings.STRIPE_PUBLISHABLE_KEY,
+        "stripe_configured": settings.stripe_configured,
+        "mock_payment": settings.ENABLE_MOCK_PAYMENT
+    }
 
 
 # ============================================================================
@@ -24,6 +49,7 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 @router.post("/stripe/customers", response_model=CustomerResponse)
 def create_stripe_customer(customer_req: CustomerRequest):
     """Create a new Stripe customer"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.create_customer(
             email=customer_req.email,
@@ -37,6 +63,7 @@ def create_stripe_customer(customer_req: CustomerRequest):
 @router.get("/stripe/customers/{customer_id}", response_model=CustomerResponse)
 def get_stripe_customer(customer_id: str):
     """Get Stripe customer details"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.get_customer(customer_id)
         return CustomerResponse(**result)
@@ -47,6 +74,7 @@ def get_stripe_customer(customer_id: str):
 @router.put("/stripe/customers/{customer_id}", response_model=CustomerResponse)
 def update_stripe_customer(customer_id: str, customer_req: CustomerRequest):
     """Update Stripe customer"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.update_customer(
             customer_id=customer_id,
@@ -61,6 +89,7 @@ def update_stripe_customer(customer_id: str, customer_req: CustomerRequest):
 @router.delete("/stripe/customers/{customer_id}")
 def delete_stripe_customer(customer_id: str):
     """Delete Stripe customer"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.delete_customer(customer_id)
         return result
@@ -75,6 +104,7 @@ def delete_stripe_customer(customer_id: str):
 @router.post("/stripe/payment", response_model=StripePaymentResponse)
 def create_stripe_payment(payment_req: StripePaymentRequest):
     """Create a Stripe PaymentIntent"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.create_payment(
             amount_cents=payment_req.amount_cents,
@@ -90,6 +120,7 @@ def create_stripe_payment(payment_req: StripePaymentRequest):
 @router.get("/stripe/payment/{payment_intent_id}", response_model=StripePaymentResponse)
 def get_stripe_payment(payment_intent_id: str):
     """Get PaymentIntent status"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.get_payment(payment_intent_id)
         return StripePaymentResponse(**result)
@@ -100,6 +131,7 @@ def get_stripe_payment(payment_intent_id: str):
 @router.post("/stripe/payment/{payment_intent_id}/confirm", response_model=StripePaymentResponse)
 def confirm_stripe_payment(payment_intent_id: str):
     """Confirm a PaymentIntent"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.confirm_payment(payment_intent_id)
         return StripePaymentResponse(**result)
@@ -110,6 +142,7 @@ def confirm_stripe_payment(payment_intent_id: str):
 @router.post("/stripe/payment/{payment_intent_id}/cancel", response_model=dict)
 def cancel_stripe_payment(payment_intent_id: str):
     """Cancel a PaymentIntent"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.cancel_payment(payment_intent_id)
         return result
@@ -198,6 +231,8 @@ async def create_payment_and_trigger_led(
        - failed/requires_action → red LED
     4. Return combined response
     """
+    ensure_stripe_configured()
+
     led_triggered = False
     led_color = "yellow"  # Default to processing
 
@@ -323,4 +358,3 @@ async def create_payment_and_trigger_led(
     except Exception as e:
         print(f"[Payment+LED] Unexpected error: {e}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
-

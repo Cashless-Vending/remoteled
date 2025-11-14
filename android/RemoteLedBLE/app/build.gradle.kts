@@ -4,19 +4,19 @@ plugins {
 
 android {
     namespace = "com.example.remoteled"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.remoteled"
         minSdk = 26  // Lowered for broader compatibility
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 2
         versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // API Base URL
-        buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.102:9999\"")
+        // API Base URL (points to local Mac backend)
+        buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.158:9999\"")
     }
 
     buildTypes {
@@ -68,7 +68,8 @@ dependencies {
     
     // Image Loading - Glide
     implementation(libs.glide)
-    
+    implementation(libs.camera.view)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)

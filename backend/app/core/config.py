@@ -42,7 +42,8 @@ class Settings(BaseSettings):
     ENABLE_MOCK_PAYMENT: bool = True
 
     # Stripe Configuration
-    STRIPE_SECRET_KEY: str = ""  # Provide via environment (.env) for each environment
+    STRIPE_SECRET_KEY: str = ""  # Must be set to your Stripe secret key (sk_test...)
+    STRIPE_PUBLISHABLE_KEY: str = ""  # Optional publishable key (pk_test...) for clients
 
     # LED GPIO Configuration (BCM numbering)
     # Unified pin mapping for all LED control implementations
@@ -69,6 +70,11 @@ class Settings(BaseSettings):
             "processing": "yellow"
         }
 
+    @property
+    def stripe_configured(self) -> bool:
+        """Return True when a Stripe secret key is configured"""
+        return bool(self.STRIPE_SECRET_KEY)
+
     class Config:
         env_file = ".env"
         case_sensitive = False
@@ -77,4 +83,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-
