@@ -403,6 +403,205 @@
                 padding: 1rem;
             }
         }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            animation: fadeIn 0.2s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            animation: slideIn 0.3s;
+        }
+
+        @keyframes slideIn {
+            from { 
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to { 
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #2d3748;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #718096;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .modal-close:hover {
+            background: #f7fafc;
+            color: #2d3748;
+        }
+
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: #2d3748;
+            font-size: 0.875rem;
+        }
+
+        .form-label.required::after {
+            content: "*";
+            color: #f56565;
+            margin-left: 0.25rem;
+        }
+
+        .form-input,
+        .form-select,
+        .form-textarea {
+            width: 100%;
+            padding: 0.625rem;
+            border: 1px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .form-input:focus,
+        .form-select:focus,
+        .form-textarea:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .form-help {
+            font-size: 0.75rem;
+            color: #718096;
+            margin-top: 0.25rem;
+        }
+
+        .form-error {
+            font-size: 0.75rem;
+            color: #f56565;
+            margin-top: 0.25rem;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #2d3748;
+        }
+
+        .btn-secondary:hover {
+            background: #cbd5e0;
+        }
+
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            z-index: 2000;
+            animation: slideInRight 0.3s;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .notification.success {
+            border-left: 4px solid #48bb78;
+        }
+
+        .notification.error {
+            border-left: 4px solid #f56565;
+        }
+
+        .notification-icon {
+            font-size: 1.25rem;
+        }
+
+        .notification-message {
+            font-size: 0.875rem;
+            color: #2d3748;
+        }
     </style>
 </head>
 <body>
@@ -461,7 +660,7 @@
         <div class="card">
             <div class="card-header">
                 <div class="card-title">Registered Devices</div>
-                <button class="btn btn-primary">+ Add New Device</button>
+                <button class="btn btn-primary" id="btn-add-device">+ Add New Device</button>
             </div>
             <div class="device-grid" id="devices-grid">
                 <div class="loading"></div>
@@ -472,7 +671,7 @@
         <div class="card">
             <div class="card-header">
                 <div class="card-title">Recent Orders</div>
-                <button class="btn btn-primary btn-sm">Export CSV</button>
+                <button class="btn btn-primary btn-sm" id="btn-export-csv">Export CSV</button>
             </div>
             <table>
                 <thead>
@@ -496,7 +695,7 @@
         <div class="card">
             <div class="card-header">
                 <div class="card-title">Product Catalog</div>
-                <button class="btn btn-primary">+ Add Product</button>
+                <button class="btn btn-primary" id="btn-add-product">+ Add Product</button>
             </div>
             <table>
                 <thead>
@@ -702,10 +901,10 @@
                 const card = document.createElement('div');
                 card.className = 'device-card';
                 const statusBtn = device.status === 'ACTIVE' ? 
-                    '<button class="btn btn-success btn-sm">Test Cycle</button>' :
-                    '<button class="btn btn-danger btn-sm">Troubleshoot</button>';
+                    '<button class="btn btn-success btn-sm" onclick="handleTestCycle(\'' + device.id + '\')">Test Cycle</button>' :
+                    '<button class="btn btn-danger btn-sm" onclick="handleTroubleshoot(\'' + device.id + '\')">Troubleshoot</button>';
                     
-                card.innerHTML = '<div class="device-header"><div><div class="device-name">' + device.label + '</div><div class="device-id">Device ID: ' + truncateId(device.id) + '</div></div><span class="badge ' + getStatusBadgeClass(device.status) + '">' + device.status + '</span></div><div class="device-info">📍 ' + (device.location || 'No location set') + '</div><div class="device-info">🔧 GPIO Pin: ' + (device.gpio_pin || 'Not configured') + '</div><div class="device-info">📊 ' + device.active_service_count + ' Active Products (' + device.service_count + ' total)</div><div class="device-info">✅ ' + device.completed_orders + ' / ' + device.total_orders + ' orders completed</div><div class="device-actions"><button class="btn btn-primary btn-sm">Configure</button>' + statusBtn + '</div>';
+                card.innerHTML = '<div class="device-header"><div><div class="device-name">' + device.label + '</div><div class="device-id">Device ID: ' + truncateId(device.id) + '</div></div><span class="badge ' + getStatusBadgeClass(device.status) + '">' + device.status + '</span></div><div class="device-info">📍 ' + (device.location || 'No location set') + '</div><div class="device-info">🔧 GPIO Pin: ' + (device.gpio_pin || 'Not configured') + '</div><div class="device-info">📊 ' + device.active_service_count + ' Active Products (' + device.service_count + ' total)</div><div class="device-info">✅ ' + device.completed_orders + ' / ' + device.total_orders + ' orders completed</div><div class="device-actions"><button class="btn btn-primary btn-sm" onclick="handleConfigureDevice(\'' + device.id + '\')">Configure</button>' + statusBtn + '</div>';
                 grid.appendChild(card);
             });
         }
@@ -739,7 +938,18 @@
                     formatCurrency(25) + ' / ' + service.minutes_per_25c + 'min' :
                     formatCurrency(service.price_cents);
                 
-                row.innerHTML = '<td>' + truncateId(service.id) + '</td><td>' + service.device_label + '</td><td>' + service.type + '</td><td>' + priceText + '</td><td>' + getDurationText(service.type, service.fixed_minutes, service.minutes_per_25c) + '</td><td>' + getLedColor(service.type) + '</td><td><span class="badge ' + (service.active ? 'active' : 'offline') + '">' + (service.active ? 'Active' : 'Inactive') + '</span></td><td><button class="btn btn-primary btn-sm">Edit</button></td>';
+                const editBtn = document.createElement('button');
+                editBtn.className = 'btn btn-primary btn-sm';
+                editBtn.textContent = 'Edit';
+                editBtn.onclick = function() {
+                    openEditProduct(service.id, service);
+                };
+                
+                row.innerHTML = '<td>' + truncateId(service.id) + '</td><td>' + service.device_label + '</td><td>' + service.type + '</td><td>' + priceText + '</td><td>' + getDurationText(service.type, service.fixed_minutes, service.minutes_per_25c) + '</td><td>' + getLedColor(service.type) + '</td><td><span class="badge ' + (service.active ? 'active' : 'offline') + '">' + (service.active ? 'Active' : 'Inactive') + '</span></td><td></td>';
+                
+                const lastCell = row.lastElementChild;
+                lastCell.appendChild(editBtn);
+                
                 tbody.appendChild(row);
             });
         }
@@ -810,7 +1020,437 @@
         
         // Load on page ready
         window.addEventListener('load', initDashboard);
+        
+        // ============================================================
+        // MODAL FUNCTIONS
+        // ============================================================
+        
+        function openModal(modalId) {
+            var modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.add('show');
+            }
+        }
+        
+        function closeModal(modalId) {
+            var modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('show');
+            }
+        }
+        
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            if (event.target.classList.contains('modal')) {
+                closeModal(event.target.id);
+            }
+        });
+        
+        // ============================================================
+        // NOTIFICATION FUNCTIONS
+        // ============================================================
+        
+        function showNotification(message, type) {
+            var notification = document.createElement('div');
+            notification.className = 'notification ' + type;
+            notification.innerHTML = '<div class="notification-icon">' + (type === 'success' ? '✓' : '✗') + '</div><div class="notification-message">' + message + '</div>';
+            document.body.appendChild(notification);
+            
+            setTimeout(function() {
+                notification.remove();
+            }, 3000);
+        }
+        
+        // ============================================================
+        // DEVICE MANAGEMENT FUNCTIONS
+        // ============================================================
+        
+        // Open Add Device modal
+        document.getElementById('btn-add-device').addEventListener('click', function() {
+            document.getElementById('form-add-device').reset();
+            openModal('modal-add-device');
+        });
+        
+        // Handle Add Device form submission
+        document.getElementById('form-add-device').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            var formData = new FormData(e.target);
+            var data = {
+                label: formData.get('label'),
+                public_key: formData.get('public_key'),
+                model: formData.get('model') || null,
+                location: formData.get('location') || null,
+                gpio_pin: formData.get('gpio_pin') ? parseInt(formData.get('gpio_pin')) : null
+            };
+            
+            try {
+                var response = await fetch(API_BASE_URL + '/admin/devices', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    showNotification('Device added successfully!', 'success');
+                    closeModal('modal-add-device');
+                    loadDevices();
+                    loadStats();
+                } else {
+                    var error = await response.json();
+                    showNotification('Error: ' + (error.detail || 'Failed to add device'), 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
+            }
+        });
+        
+        // ============================================================
+        // PRODUCT MANAGEMENT FUNCTIONS
+        // ============================================================
+        
+        // Handle product type change in Add Product form
+        function handleProductTypeChange() {
+            var type = document.getElementById('product-type-select').value;
+            var fixedField = document.getElementById('field-fixed-minutes');
+            var variableField = document.getElementById('field-minutes-per-25c');
+            var fixedInput = document.querySelector('#field-fixed-minutes input');
+            var variableInput = document.querySelector('#field-minutes-per-25c input');
+            
+            if (type === 'FIXED') {
+                fixedField.style.display = 'block';
+                variableField.style.display = 'none';
+                fixedInput.required = true;
+                variableInput.required = false;
+                variableInput.value = '';
+            } else if (type === 'VARIABLE') {
+                fixedField.style.display = 'none';
+                variableField.style.display = 'block';
+                fixedInput.required = false;
+                variableInput.required = true;
+                fixedInput.value = '';
+            } else {
+                fixedField.style.display = 'none';
+                variableField.style.display = 'none';
+                fixedInput.required = false;
+                variableInput.required = false;
+                fixedInput.value = '';
+                variableInput.value = '';
+            }
+        }
+        
+        // Open Add Product modal
+        document.getElementById('btn-add-product').addEventListener('click', async function() {
+            document.getElementById('form-add-product').reset();
+            handleProductTypeChange();
+            
+            // Load devices into dropdown
+            var data = await fetchData('/admin/devices/all');
+            if (data) {
+                var select = document.getElementById('product-device-select');
+                select.innerHTML = '<option value="">Select a device...</option>';
+                data.forEach(function(device) {
+                    var option = document.createElement('option');
+                    option.value = device.id;
+                    option.textContent = device.label;
+                    select.appendChild(option);
+                });
+            }
+            
+            openModal('modal-add-product');
+        });
+        
+        // Handle Add Product form submission
+        document.getElementById('form-add-product').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            var formData = new FormData(e.target);
+            var data = {
+                device_id: formData.get('device_id'),
+                type: formData.get('type'),
+                price_cents: parseInt(formData.get('price_cents')),
+                active: true
+            };
+            
+            if (data.type === 'FIXED') {
+                data.fixed_minutes = parseInt(formData.get('fixed_minutes'));
+            } else if (data.type === 'VARIABLE') {
+                data.minutes_per_25c = parseInt(formData.get('minutes_per_25c'));
+            }
+            
+            try {
+                var response = await fetch(API_BASE_URL + '/admin/services', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    showNotification('Product added successfully!', 'success');
+                    closeModal('modal-add-product');
+                    loadServices();
+                    loadDevices();
+                } else {
+                    var error = await response.json();
+                    showNotification('Error: ' + (error.detail || 'Failed to add product'), 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
+            }
+        });
+        
+        // Handle Edit Product form submission
+        document.getElementById('form-edit-product').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            var serviceId = document.getElementById('edit-service-id').value;
+            var formData = new FormData(e.target);
+            var data = {};
+            
+            var priceCents = formData.get('price_cents');
+            if (priceCents) data.price_cents = parseInt(priceCents);
+            
+            var fixedMinutes = formData.get('fixed_minutes');
+            if (fixedMinutes) data.fixed_minutes = parseInt(fixedMinutes);
+            
+            var minutesPer25c = formData.get('minutes_per_25c');
+            if (minutesPer25c) data.minutes_per_25c = parseInt(minutesPer25c);
+            
+            data.active = formData.get('active') === 'true';
+            
+            try {
+                var response = await fetch(API_BASE_URL + '/admin/services/' + serviceId, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    showNotification('Product updated successfully!', 'success');
+                    closeModal('modal-edit-product');
+                    loadServices();
+                    loadDevices();
+                } else {
+                    var error = await response.json();
+                    showNotification('Error: ' + (error.detail || 'Failed to update product'), 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
+            }
+        });
+        
+        // ============================================================
+        // EXPORT CSV FUNCTION
+        // ============================================================
+        
+        document.getElementById('btn-export-csv').addEventListener('click', function() {
+            var table = document.getElementById('orders-table');
+            var rows = table.querySelectorAll('tr');
+            var csv = [];
+            
+            // Add header
+            csv.push('Order ID,Device,Product Type,Amount,Duration,Status,Timestamp');
+            
+            // Add data rows
+            rows.forEach(function(row) {
+                var cols = row.querySelectorAll('td');
+                if (cols.length > 0) {
+                    var rowData = [];
+                    cols.forEach(function(col, index) {
+                        // Get text content, removing badge HTML
+                        var text = col.textContent.trim();
+                        // Escape commas in data
+                        if (text.indexOf(',') !== -1) {
+                            text = '"' + text + '"';
+                        }
+                        rowData.push(text);
+                    });
+                    csv.push(rowData.join(','));
+                }
+            });
+            
+            // Create download
+            var csvContent = csv.join('\n');
+            var blob = new Blob([csvContent], { type: 'text/csv' });
+            var url = window.URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = 'orders_' + new Date().toISOString().split('T')[0] + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+            
+            showNotification('CSV exported successfully!', 'success');
+        });
+        
+        // ============================================================
+        // HELPER FUNCTIONS FOR BUTTONS IN DATA ROWS
+        // ============================================================
+        
+        function openEditProduct(serviceId, service) {
+            document.getElementById('edit-service-id').value = serviceId;
+            document.getElementById('edit-product-type').value = service.type;
+            document.getElementById('edit-price-cents').value = service.price_cents;
+            document.getElementById('edit-active').value = service.active.toString();
+            
+            var fixedField = document.getElementById('edit-field-fixed-minutes');
+            var variableField = document.getElementById('edit-field-minutes-per-25c');
+            
+            if (service.type === 'FIXED') {
+                fixedField.style.display = 'block';
+                variableField.style.display = 'none';
+                document.getElementById('edit-fixed-minutes').value = service.fixed_minutes || '';
+            } else if (service.type === 'VARIABLE') {
+                fixedField.style.display = 'none';
+                variableField.style.display = 'block';
+                document.getElementById('edit-minutes-per-25c').value = service.minutes_per_25c || '';
+            } else {
+                fixedField.style.display = 'none';
+                variableField.style.display = 'none';
+            }
+            
+            openModal('modal-edit-product');
+        }
+        
+        function handleConfigureDevice(deviceId) {
+            showNotification('Device configuration coming soon!', 'success');
+        }
+        
+        function handleTestCycle(deviceId) {
+            showNotification('Test cycle initiated for device ' + truncateId(deviceId), 'success');
+        }
+        
+        function handleTroubleshoot(deviceId) {
+            showNotification('Troubleshooting mode for device ' + truncateId(deviceId), 'success');
+        }
     </script>
+
+    <!-- Add Device Modal -->
+    <div id="modal-add-device" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Add New Device</h2>
+                <button class="modal-close" onclick="closeModal('modal-add-device')">&times;</button>
+            </div>
+            <form id="form-add-device">
+                <div class="form-group">
+                    <label class="form-label required">Device Label</label>
+                    <input type="text" name="label" class="form-input" required placeholder="e.g., Massage Chair #7">
+                    <div class="form-help">A friendly name for this device</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label required">Public Key</label>
+                    <textarea name="public_key" class="form-textarea" required placeholder="ECDSA public key"></textarea>
+                    <div class="form-help">ECDSA public key for signature verification</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Model</label>
+                    <input type="text" name="model" class="form-input" placeholder="e.g., Raspberry Pi 4">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Location</label>
+                    <input type="text" name="location" class="form-input" placeholder="e.g., Main Lobby">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">GPIO Pin</label>
+                    <input type="number" name="gpio_pin" class="form-input" min="0" max="40" placeholder="e.g., 23">
+                    <div class="form-help">GPIO pin number for relay/LED control (0-40)</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-device')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Device</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Product Modal -->
+    <div id="modal-add-product" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Add New Product</h2>
+                <button class="modal-close" onclick="closeModal('modal-add-product')">&times;</button>
+            </div>
+            <form id="form-add-product">
+                <div class="form-group">
+                    <label class="form-label required">Device</label>
+                    <select name="device_id" class="form-select" required id="product-device-select">
+                        <option value="">Select a device...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label required">Product Type</label>
+                    <select name="type" class="form-select" required id="product-type-select" onchange="handleProductTypeChange()">
+                        <option value="">Select type...</option>
+                        <option value="TRIGGER">TRIGGER - One-time pulse (2 seconds)</option>
+                        <option value="FIXED">FIXED - Fixed duration</option>
+                        <option value="VARIABLE">VARIABLE - Pay per time</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label required">Price (in cents)</label>
+                    <input type="number" name="price_cents" class="form-input" required min="0" placeholder="e.g., 100 for $1.00">
+                    <div class="form-help">Price in cents (100 = $1.00)</div>
+                </div>
+                <div class="form-group" id="field-fixed-minutes" style="display: none;">
+                    <label class="form-label">Fixed Duration (minutes)</label>
+                    <input type="number" name="fixed_minutes" class="form-input" min="1" placeholder="e.g., 15">
+                    <div class="form-help">Required for FIXED type products</div>
+                </div>
+                <div class="form-group" id="field-minutes-per-25c" style="display: none;">
+                    <label class="form-label">Minutes per 25 cents</label>
+                    <input type="number" name="minutes_per_25c" class="form-input" min="1" placeholder="e.g., 6">
+                    <div class="form-help">Required for VARIABLE type products</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('modal-add-product')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Product Modal -->
+    <div id="modal-edit-product" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Edit Product</h2>
+                <button class="modal-close" onclick="closeModal('modal-edit-product')">&times;</button>
+            </div>
+            <form id="form-edit-product">
+                <input type="hidden" name="service_id" id="edit-service-id">
+                <div class="form-group">
+                    <label class="form-label">Product Type</label>
+                    <input type="text" class="form-input" id="edit-product-type" disabled>
+                    <div class="form-help">Product type cannot be changed</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Price (in cents)</label>
+                    <input type="number" name="price_cents" class="form-input" min="0" id="edit-price-cents" placeholder="e.g., 100 for $1.00">
+                </div>
+                <div class="form-group" id="edit-field-fixed-minutes" style="display: none;">
+                    <label class="form-label">Fixed Duration (minutes)</label>
+                    <input type="number" name="fixed_minutes" class="form-input" min="1" id="edit-fixed-minutes">
+                </div>
+                <div class="form-group" id="edit-field-minutes-per-25c" style="display: none;">
+                    <label class="form-label">Minutes per 25 cents</label>
+                    <input type="number" name="minutes_per_25c" class="form-input" min="1" id="edit-minutes-per-25c">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <select name="active" class="form-select" id="edit-active">
+                        <option value="true">Active</option>
+                        <option value="false">Inactive</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('modal-edit-product')">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 </html>
 
