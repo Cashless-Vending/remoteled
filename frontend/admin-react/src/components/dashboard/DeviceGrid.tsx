@@ -9,6 +9,8 @@ interface DeviceGridProps {
 }
 
 export const DeviceGrid = ({ devices, onEdit, onDelete, onAddNew }: DeviceGridProps) => {
+  const safeDevices = devices || []
+  
   return (
     <div className="card">
       <div className="card-header">
@@ -18,14 +20,20 @@ export const DeviceGrid = ({ devices, onEdit, onDelete, onAddNew }: DeviceGridPr
         </button>
       </div>
       <div className="device-grid">
-        {devices.map(device => (
-          <DeviceCard 
-            key={device.id}
-            device={device}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        ))}
+        {safeDevices.length === 0 ? (
+          <div style={{ padding: '2rem', textAlign: 'center', color: '#718096' }}>
+            No devices found. Add your first device to get started.
+          </div>
+        ) : (
+          safeDevices.map(device => (
+            <DeviceCard 
+              key={device.id}
+              device={device}
+              onEdit={onEdit}
+              onDelete={onDelete}
+            />
+          ))
+        )}
       </div>
     </div>
   )

@@ -47,6 +47,11 @@ services:
       
       # CORS settings
       CORS_ORIGINS: http://localhost,http://localhost:80,http://frontend,*
+      
+      # Firebase settings
+      FIREBASE_CREDENTIALS_PATH: /app/firebase-credentials.json
+    volumes:
+      - ./remoteled-7f6ba-firebase-adminsdk-fbsvc-f20bfcc258.json:/app/firebase-credentials.json:ro
     ports:
       - "8000:8000"
     networks:

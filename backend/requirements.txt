@@ -24,20 +24,21 @@ cryptography==41.0.7
 
 # Authentication
 passlib[bcrypt]==1.7.4
+firebase-admin==6.3.0
 
 # Utilities
 python-dotenv==1.0.0
 python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
 
 # Date/Time
 python-dateutil==2.8.2
 
-# Payment Integration
-stripe==11.1.0
-
 # Bluetooth LE
 bleak==0.22.3
+
+# Email
+aiosmtplib==3.0.1
+jinja2==3.1.2
 
 # Testing (optional)
 pytest==7.4.3

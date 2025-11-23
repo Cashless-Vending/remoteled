@@ -9,6 +9,7 @@ DROP TABLE IF EXISTS admin_logs CASCADE;
 DROP TABLE IF EXISTS logs CASCADE;
 DROP TABLE IF EXISTS authorizations CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS device_services CASCADE;
 DROP TABLE IF EXISTS services CASCADE;
 DROP TABLE IF EXISTS devices CASCADE;
 DROP TABLE IF EXISTS admins CASCADE;
@@ -62,6 +63,8 @@ CREATE TABLE devices (
     public_key TEXT NOT NULL,
     model VARCHAR(100),
     location VARCHAR(255),
+    model_id UUID,
+    location_id UUID,
     gpio_pin INTEGER,
     status device_status DEFAULT 'ACTIVE',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
@@ -93,11 +96,79 @@ CREATE TRIGGER update_devices_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
--- SERVICES TABLE (Products offered by each device)
+-- DEVICE MODELS TABLE (Reference Data)
+-- ============================================================
+CREATE TABLE device_models (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL UNIQUE,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT model_name_not_empty CHECK (length(trim(name)) > 0)
+);
+
+-- Index for common queries
+CREATE INDEX idx_device_models_name ON device_models(name);
+
+COMMENT ON TABLE device_models IS 'Reference table for device hardware models (e.g., RPi 4 Model B, RPi Zero 2 W)';
+
+-- ============================================================
+-- LOCATIONS TABLE (Reference Data)
+-- ============================================================
+CREATE TABLE locations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL UNIQUE,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT location_name_not_empty CHECK (length(trim(name)) > 0)
+);
+
+-- Index for common queries
+CREATE INDEX idx_locations_name ON locations(name);
+
+COMMENT ON TABLE locations IS 'Reference table for device locations (e.g., Building 5 Floor 2, Main Lobby)';
+
+-- ============================================================
+-- SERVICE TYPES TABLE (Reference Data)
+-- ============================================================
+CREATE TABLE service_types (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(50) NOT NULL UNIQUE,
+    code service_type NOT NULL UNIQUE,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Constraints
+    CONSTRAINT service_type_name_not_empty CHECK (length(trim(name)) > 0)
+);
+
+-- Index for common queries
+CREATE INDEX idx_service_types_code ON service_types(code);
+CREATE INDEX idx_service_types_name ON service_types(name);
+
+COMMENT ON TABLE service_types IS 'Reference table mapping user-friendly names to service type ENUMs (TRIGGER, FIXED, VARIABLE)';
+
+-- Add foreign key constraints for devices table (after reference tables are created)
+ALTER TABLE devices
+    ADD CONSTRAINT fk_devices_model
+    FOREIGN KEY (model_id) REFERENCES device_models(id) ON DELETE SET NULL;
+
+ALTER TABLE devices
+    ADD CONSTRAINT fk_devices_location
+    FOREIGN KEY (location_id) REFERENCES locations(id) ON DELETE SET NULL;
+
+-- Indexes for foreign keys
+CREATE INDEX idx_devices_model_id ON devices(model_id);
+CREATE INDEX idx_devices_location_id ON devices(location_id);
+
+-- ============================================================
+-- SERVICES TABLE (Global services/products)
 -- ============================================================
 CREATE TABLE services (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
     type service_type NOT NULL,
     price_cents INTEGER NOT NULL,
     fixed_minutes INTEGER,
@@ -124,7 +195,6 @@ CREATE TABLE services (
 );
 
 -- Indexes
-CREATE INDEX idx_services_device_id ON services(device_id);
 CREATE INDEX idx_services_active ON services(active);
 CREATE INDEX idx_services_type ON services(type);
 
@@ -135,12 +205,29 @@ CREATE TRIGGER update_services_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================
+-- DEVICE_SERVICES TABLE (Many-to-Many relationship)
+-- ============================================================
+CREATE TABLE device_services (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    device_id UUID NOT NULL REFERENCES devices(id) ON DELETE CASCADE,
+    service_id UUID NOT NULL REFERENCES services(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Ensure a device can't have the same service assigned twice
+    CONSTRAINT unique_device_service UNIQUE (device_id, service_id)
+);
+
+-- Indexes for junction table
+CREATE INDEX idx_device_services_device_id ON device_services(device_id);
+CREATE INDEX idx_device_services_service_id ON device_services(service_id);
+
+-- ============================================================
 -- ORDERS TABLE
 -- ============================================================
 CREATE TABLE orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     device_id UUID NOT NULL REFERENCES devices(id) ON DELETE RESTRICT,
-    product_id UUID NOT NULL REFERENCES services(id) ON DELETE RESTRICT,
+    service_id UUID NOT NULL REFERENCES services(id) ON DELETE RESTRICT,
     amount_cents INTEGER NOT NULL,
     authorized_minutes INTEGER NOT NULL,
     status order_status DEFAULT 'CREATED',
@@ -154,7 +241,7 @@ CREATE TABLE orders (
 
 -- Indexes for common queries
 CREATE INDEX idx_orders_device_id ON orders(device_id);
-CREATE INDEX idx_orders_product_id ON orders(product_id);
+CREATE INDEX idx_orders_service_id ON orders(service_id);
 CREATE INDEX idx_orders_status ON orders(status);
 CREATE INDEX idx_orders_created_at ON orders(created_at DESC);
 CREATE INDEX idx_orders_device_status ON orders(device_id, status);
@@ -244,13 +331,14 @@ SELECT
     d.model,
     d.location,
     d.status,
-    COUNT(s.id) as service_count,
-    COUNT(s.id) FILTER (WHERE s.active = true) as active_service_count,
-    COUNT(o.id) as total_orders,
-    COUNT(o.id) FILTER (WHERE o.status = 'DONE') as completed_orders,
+    COUNT(DISTINCT ds.service_id) as service_count,
+    COUNT(DISTINCT ds.service_id) FILTER (WHERE s.active = true) as active_service_count,
+    COUNT(DISTINCT o.id) as total_orders,
+    COUNT(DISTINCT o.id) FILTER (WHERE o.status = 'DONE') as completed_orders,
     d.created_at
 FROM devices d
-LEFT JOIN services s ON d.id = s.device_id
+LEFT JOIN device_services ds ON d.id = ds.device_id
+LEFT JOIN services s ON ds.service_id = s.id
 LEFT JOIN orders o ON d.id = o.device_id
 GROUP BY d.id, d.label, d.model, d.location, d.status, d.created_at;
 
@@ -274,7 +362,7 @@ SELECT
     END as has_authorization
 FROM orders o
 JOIN devices d ON o.device_id = d.id
-JOIN services s ON o.product_id = s.id
+JOIN services s ON o.service_id = s.id
 LEFT JOIN authorizations a ON o.id = a.order_id;
 
 -- Recent logs with device info
@@ -309,7 +397,8 @@ BEGIN
     RETURN QUERY
     SELECT s.id, s.type, s.price_cents, s.fixed_minutes, s.minutes_per_25c
     FROM services s
-    WHERE s.device_id = device_uuid AND s.active = true;
+    JOIN device_services ds ON s.id = ds.service_id
+    WHERE ds.device_id = device_uuid AND s.active = true;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -360,7 +449,8 @@ $$ LANGUAGE plpgsql;
 -- ============================================================
 
 COMMENT ON TABLE devices IS 'Raspberry Pi devices running RemoteLED';
-COMMENT ON TABLE services IS 'Products/services offered by each device (TRIGGER, FIXED, VARIABLE)';
+COMMENT ON TABLE services IS 'Global services/products (TRIGGER, FIXED, VARIABLE)';
+COMMENT ON TABLE device_services IS 'Many-to-many relationship between devices and services';
 COMMENT ON TABLE orders IS 'Customer orders tracking payment and execution lifecycle';
 COMMENT ON TABLE authorizations IS 'Cryptographically signed authorizations sent to devices';
 COMMENT ON TABLE logs IS 'Telemetry and communication logs between Pi and server';
@@ -380,7 +470,7 @@ COMMENT ON COLUMN logs.direction IS 'PI_TO_SRV: telemetry from device, SRV_TO_PI
 DO $$
 BEGIN
     RAISE NOTICE '✓ RemoteLED database schema created successfully!';
-    RAISE NOTICE '  - Tables: admins, devices, services, orders, authorizations, logs';
+    RAISE NOTICE '  - Tables: admins, devices, services, device_services, orders, authorizations, logs';
     RAISE NOTICE '  - Views: v_devices_summary, v_orders_detailed, v_logs_recent';
     RAISE NOTICE '  - Functions: get_device_services, calculate_variable_minutes';
     RAISE NOTICE '';

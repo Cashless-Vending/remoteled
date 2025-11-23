@@ -9,7 +9,7 @@ import psycopg2
 
 from app.core.config import settings
 from app.core.database import db
-from app.api import devices, orders, authorizations, payments, telemetry, admin, auth
+from app.api import devices, orders, authorizations, payments, telemetry, admin, auth, device_models, locations, service_types, reference
 
 # Create FastAPI app
 app = FastAPI(
@@ -36,6 +36,8 @@ app.include_router(authorizations.router)
 app.include_router(payments.router)
 app.include_router(telemetry.router)
 app.include_router(admin.router)
+# Use unified reference router instead of individual routers
+app.include_router(reference.router)
 
 
 @app.get("/")

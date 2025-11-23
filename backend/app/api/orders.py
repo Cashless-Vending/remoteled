@@ -25,21 +25,33 @@ def create_order(order_req: OrderCreateRequest, cursor: RealDictCursor = Depends
     """
     # Validate UUID formats
     validate_uuid(order_req.device_id, "Device ID")
-    validate_uuid(order_req.product_id, "Product ID")
+    validate_uuid(order_req.service_id, "Service ID")
     
     # Validate device exists
     cursor.execute("SELECT id FROM devices WHERE id = %s", (order_req.device_id,))
     if not cursor.fetchone():
         raise HTTPException(status_code=404, detail="Device not found")
     
+    # Validate service is assigned to device
+    cursor.execute(
+        """
+        SELECT COUNT(*) as count
+        FROM device_services
+        WHERE device_id = %s AND service_id = %s
+        """,
+        (order_req.device_id, order_req.service_id)
+    )
+    if cursor.fetchone()['count'] == 0:
+        raise HTTPException(status_code=400, detail="Service is not assigned to this device")
+    
     # Get service details
     cursor.execute(
         """
         SELECT type, price_cents, fixed_minutes, minutes_per_25c, active
         FROM services
-        WHERE id = %s AND device_id = %s
+        WHERE id = %s
         """,
-        (order_req.product_id, order_req.device_id)
+        (order_req.service_id,)
     )
     
     service = cursor.fetchone()
@@ -67,12 +79,12 @@ def create_order(order_req: OrderCreateRequest, cursor: RealDictCursor = Depends
     # Create order
     cursor.execute(
         """
-        INSERT INTO orders (device_id, product_id, amount_cents, authorized_minutes, status)
+        INSERT INTO orders (device_id, service_id, amount_cents, authorized_minutes, status)
         VALUES (%s, %s, %s, %s, %s)
-        RETURNING id, device_id, product_id, amount_cents, authorized_minutes, 
+        RETURNING id, device_id, service_id, amount_cents, authorized_minutes, 
                   status, created_at, updated_at
         """,
-        (order_req.device_id, order_req.product_id, order_req.amount_cents, 
+        (order_req.device_id, order_req.service_id, order_req.amount_cents, 
          authorized_minutes, OrderStatus.CREATED.value)
     )
     
@@ -88,7 +100,7 @@ def get_order(order_id: str, cursor: RealDictCursor = Depends(get_db)):
     
     cursor.execute(
         """
-        SELECT id, device_id, product_id, amount_cents, authorized_minutes,
+        SELECT id, device_id, service_id, amount_cents, authorized_minutes,
                status, created_at, updated_at
         FROM orders
         WHERE id = %s
@@ -152,7 +164,7 @@ def update_order_status(
         UPDATE orders
         SET status = %s, updated_at = CURRENT_TIMESTAMP
         WHERE id = %s
-        RETURNING id, device_id, product_id, amount_cents, authorized_minutes,
+        RETURNING id, device_id, service_id, amount_cents, authorized_minutes,
                   status, created_at, updated_at
         """,
         (new_status, order_id)
