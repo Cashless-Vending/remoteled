@@ -14,10 +14,10 @@
         android:name="android.hardware.bluetooth_le"
         android:required="true" />
 
-    <!-- Camera Permission -->
+    <!-- Camera Permission for QR scanning -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-feature android:name="android.hardware.camera.any" />
-    
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <!-- Internet Permission for API calls -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -33,6 +33,7 @@
         android:theme="@style/Theme.RemoteLed"
         android:usesCleartextTraffic="true"
         tools:targetApi="31">
+
         <activity
             android:name=".QRCodeScannerActivity"
             android:exported="true">
@@ -72,7 +73,7 @@
             android:exported="true"
             android:theme="@style/Theme.RemoteLed">
 
-            <!-- This intent filter handles deep links -->
+            <!-- Deep link: remoteled://connect/{mac}/{service}/{char}/{key} -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -82,6 +83,25 @@
                 <data
                     android:host="connect"
                     android:scheme="remoteled" />
+            </intent-filter>
+
+            <!-- Deep link: https://your-api.com/detail?machineId=XXX&mac=YYY&... -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="https"
+                    android:host="your-api.com"
+                    android:pathPrefix="/detail" />
+
+                <!-- For local testing with ngrok or similar -->
+                <data
+                    android:scheme="http"
+                    android:host="*"
+                    android:pathPrefix="/detail" />
             </intent-filter>
         </activity>
     </application>

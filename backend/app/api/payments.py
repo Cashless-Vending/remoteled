@@ -12,9 +12,34 @@ from app.models.schemas import (
 )
 from app.core import payment_handler
 from app.core import led_handler
+from app.core.config import settings
 import stripe
 
 router = APIRouter(prefix="/payments", tags=["payments"])
+
+
+def ensure_stripe_configured():
+    """Raise an HTTP error if the Stripe secret key is missing"""
+    if not settings.STRIPE_SECRET_KEY:
+        raise HTTPException(
+            status_code=500,
+            detail="Stripe secret key is not configured. "
+                   "Set STRIPE_SECRET_KEY in your environment (.env) with an sk_test... value."
+        )
+
+
+# ============================================================================
+# STRIPE CONFIG ROUTE
+# ============================================================================
+
+@router.get("/stripe/config")
+def get_stripe_config():
+    """Expose Stripe publishable key + status for clients"""
+    return {
+        "publishable_key": settings.STRIPE_PUBLISHABLE_KEY,
+        "stripe_configured": settings.stripe_configured,
+        "mock_payment": settings.ENABLE_MOCK_PAYMENT
+    }
 
 
 # ============================================================================
@@ -24,6 +49,7 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 @router.post("/stripe/customers", response_model=CustomerResponse)
 def create_stripe_customer(customer_req: CustomerRequest):
     """Create a new Stripe customer"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.create_customer(
             email=customer_req.email,
@@ -37,6 +63,7 @@ def create_stripe_customer(customer_req: CustomerRequest):
 @router.get("/stripe/customers/{customer_id}", response_model=CustomerResponse)
 def get_stripe_customer(customer_id: str):
     """Get Stripe customer details"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.get_customer(customer_id)
         return CustomerResponse(**result)
@@ -47,6 +74,7 @@ def get_stripe_customer(customer_id: str):
 @router.put("/stripe/customers/{customer_id}", response_model=CustomerResponse)
 def update_stripe_customer(customer_id: str, customer_req: CustomerRequest):
     """Update Stripe customer"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.update_customer(
             customer_id=customer_id,
@@ -61,6 +89,7 @@ def update_stripe_customer(customer_id: str, customer_req: CustomerRequest):
 @router.delete("/stripe/customers/{customer_id}")
 def delete_stripe_customer(customer_id: str):
     """Delete Stripe customer"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.delete_customer(customer_id)
         return result
@@ -75,6 +104,7 @@ def delete_stripe_customer(customer_id: str):
 @router.post("/stripe/payment", response_model=StripePaymentResponse)
 def create_stripe_payment(payment_req: StripePaymentRequest):
     """Create a Stripe PaymentIntent"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.create_payment(
             amount_cents=payment_req.amount_cents,
@@ -90,6 +120,7 @@ def create_stripe_payment(payment_req: StripePaymentRequest):
 @router.get("/stripe/payment/{payment_intent_id}", response_model=StripePaymentResponse)
 def get_stripe_payment(payment_intent_id: str):
     """Get PaymentIntent status"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.get_payment(payment_intent_id)
         return StripePaymentResponse(**result)
@@ -100,6 +131,7 @@ def get_stripe_payment(payment_intent_id: str):
 @router.post("/stripe/payment/{payment_intent_id}/confirm", response_model=StripePaymentResponse)
 def confirm_stripe_payment(payment_intent_id: str):
     """Confirm a PaymentIntent"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.confirm_payment(payment_intent_id)
         return StripePaymentResponse(**result)
@@ -110,6 +142,7 @@ def confirm_stripe_payment(payment_intent_id: str):
 @router.post("/stripe/payment/{payment_intent_id}/cancel", response_model=dict)
 def cancel_stripe_payment(payment_intent_id: str):
     """Cancel a PaymentIntent"""
+    ensure_stripe_configured()
     try:
         result = payment_handler.cancel_payment(payment_intent_id)
         return result
@@ -183,7 +216,10 @@ def get_customer_stripe_orders(
 # ============================================================================
 
 @router.post("/stripe/payment-and-trigger", response_model=StripePaymentTriggerResponse)
-async def create_payment_and_trigger_led(payment_req: StripePaymentTriggerRequest):
+async def create_payment_and_trigger_led(
+    payment_req: StripePaymentTriggerRequest,
+    cursor: RealDictCursor = Depends(get_db)
+):
     """
     Create Stripe payment and trigger LED on Pi device via BLE
 
@@ -195,6 +231,8 @@ async def create_payment_and_trigger_led(payment_req: StripePaymentTriggerReques
        - failed/requires_action → red LED
     4. Return combined response
     """
+    ensure_stripe_configured()
+
     led_triggered = False
     led_color = "yellow"  # Default to processing
 
@@ -212,12 +250,17 @@ async def create_payment_and_trigger_led(payment_req: StripePaymentTriggerReques
             "amount": payment_req.amount_cents,
             "currency": "usd",
             "description": payment_req.description or f"Payment for device {payment_req.device_id}",
-            "metadata": {"device_id": payment_req.device_id},
+            "metadata": {
+                "device_id": payment_req.device_id
+            },
             "automatic_payment_methods": {
                 "enabled": True,
                 "allow_redirects": "never"  # No redirects for vending machine use case
             }
         }
+
+        if payment_req.order_id:
+            payment_params["metadata"]["order_id"] = payment_req.order_id
 
         # Only add customer if provided
         if payment_req.customer_id:
@@ -251,21 +294,25 @@ async def create_payment_and_trigger_led(payment_req: StripePaymentTriggerReques
         print(f"\n[Payment+LED] 🎨 LED Color Decision: {led_color.upper()} (based on status: {payment_intent.status})")
         print(f"[Payment+LED] 💡 Now triggering BLE LED on device {payment_req.device_id}...")
         print(f"{'='*60}")
-        led_success = await led_handler.trigger_led(
-            color=led_color,
-            duration=payment_req.duration_seconds
-        )
-        led_triggered = led_success
+        if payment_req.skip_led:
+            print("[Payment+LED] ⚙️  Skip LED flag set — not triggering BLE for this request.")
+            led_triggered = False
+        else:
+            led_success = await led_handler.trigger_led(
+                color=led_color,
+                duration=payment_req.duration_seconds
+            )
+            led_triggered = led_success
 
         print(f"{'='*60}")
-        if led_success:
+        if led_triggered:
             print(f"[Payment+LED] SUCCESS! LED triggered successfully")
         else:
-            print(f"[Payment+LED] LED trigger failed (expected without Pi hardware)")
+            print(f"[Payment+LED] LED trigger skipped or failed (expected without Pi hardware)")
         print(f"{'='*60}\n")
 
         # Step 5: Return response
-        return StripePaymentTriggerResponse(
+        response = StripePaymentTriggerResponse(
             payment_intent_id=payment_intent.id,
             amount_cents=payment_intent.amount,
             payment_status=payment_intent.status,
@@ -276,6 +323,18 @@ async def create_payment_and_trigger_led(payment_req: StripePaymentTriggerReques
             created_at=payment_intent.created
         )
 
+        if payment_req.order_id and payment_intent.status == "succeeded":
+            cursor.execute(
+                """
+                UPDATE orders
+                SET status = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                ("PAID", payment_req.order_id)
+            )
+
+        return response
+
     except stripe.StripeError as e:
         print(f"[Payment+LED] Stripe error: {e}")
         # Even if payment fails, try to trigger red LED
@@ -285,9 +344,17 @@ async def create_payment_and_trigger_led(payment_req: StripePaymentTriggerReques
         except Exception as led_error:
             print(f"[Payment+LED] LED trigger also failed: {led_error}")
 
+        if payment_req.order_id:
+            cursor.execute(
+                """
+                UPDATE orders
+                SET status = %s, updated_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                ("FAILED", payment_req.order_id)
+            )
         raise HTTPException(status_code=400, detail=f"Stripe error: {str(e)}")
 
     except Exception as e:
         print(f"[Payment+LED] Unexpected error: {e}")
         raise HTTPException(status_code=500, detail=f"Internal error: {str(e)}")
-

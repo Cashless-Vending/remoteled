@@ -11,6 +11,16 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
     "bleak>=0.22.0",
     "stripe>=13.0.1",
+    "bluezero>=0.9.1; sys_platform == 'linux'",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.6",
+    "asyncpg>=0.29.0",
+    "sqlalchemy>=2.0.23",
+    "python-dateutil>=2.8.2",
+    "python-dotenv>=1.0.0",
+    "email-validator>=2.1.0",
+    "cryptography>=41.0.7",
 ]
 
 [project.optional-dependencies]
