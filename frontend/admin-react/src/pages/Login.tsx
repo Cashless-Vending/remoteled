@@ -5,11 +5,16 @@ import { LoginForm } from '../components/forms'
 
 export const Login = () => {
   const [showLoginForm, setShowLoginForm] = useState(false)
-  const { login } = useAuth()
+  const { login, signup } = useAuth()
   const navigate = useNavigate()
 
   const handleLogin = async (email: string, password: string) => {
-    await login({ email, password })
+    await login(email, password)
+    navigate('/dashboard')
+  }
+
+  const handleSignup = async (email: string, password: string) => {
+    await signup(email, password)
     navigate('/dashboard')
   }
 
@@ -33,6 +38,7 @@ export const Login = () => {
         isOpen={showLoginForm}
         onClose={() => setShowLoginForm(false)}
         onSubmit={handleLogin}
+        onSignup={handleSignup}
       />
     </>
   )

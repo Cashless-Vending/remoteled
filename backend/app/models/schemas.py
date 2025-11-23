@@ -39,10 +39,9 @@ class DeviceResponse(BaseModel):
     created_at: datetime
 
 
-# Service/Product Models
+# Service Models (Global services)
 class ServiceResponse(BaseModel):
     id: str
-    device_id: str
     type: ServiceType
     price_cents: int
     fixed_minutes: Optional[int]
@@ -64,14 +63,14 @@ class DeviceWithServicesResponse(BaseModel):
 # Order Models
 class OrderCreateRequest(BaseModel):
     device_id: str
-    product_id: str
+    service_id: str
     amount_cents: int
 
 
 class OrderResponse(BaseModel):
     id: str
     device_id: str
-    product_id: str
+    service_id: str
     amount_cents: int
     authorized_minutes: int
     status: OrderStatus
@@ -202,6 +201,82 @@ class ErrorResponse(BaseModel):
     error: str
     detail: Optional[str] = None
     status_code: int
+
+
+# Device-Service Assignment Models
+class DeviceServiceAssignmentRequest(BaseModel):
+    device_id: str
+    service_id: str
+
+
+class DeviceServiceAssignmentResponse(BaseModel):
+    id: str
+    device_id: str
+    service_id: str
+    created_at: datetime
+
+
+# Reference Data Models
+
+# Device Model Reference
+class DeviceModelBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class DeviceModelCreate(DeviceModelBase):
+    pass
+
+
+class DeviceModelUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class DeviceModelResponse(DeviceModelBase):
+    id: str
+    created_at: datetime
+
+
+# Location Reference
+class LocationBase(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class LocationCreate(LocationBase):
+    pass
+
+
+class LocationUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class LocationResponse(LocationBase):
+    id: str
+    created_at: datetime
+
+
+# Service Type Reference (Read-only, maps to ENUM)
+class ServiceTypeCreate(BaseModel):
+    name: str
+    code: str
+    description: Optional[str] = None
+
+
+class ServiceTypeUpdate(BaseModel):
+    name: Optional[str] = None
+    code: Optional[str] = None
+    description: Optional[str] = None
+
+
+class ServiceTypeResponse(BaseModel):
+    id: str
+    name: str
+    code: ServiceType
+    description: Optional[str] = None
+    created_at: datetime
 
 
 # Health Check
