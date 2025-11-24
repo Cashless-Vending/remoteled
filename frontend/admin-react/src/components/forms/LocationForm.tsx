@@ -36,6 +36,7 @@ export const LocationForm = ({ location, onSubmit, onCancel }: LocationFormProps
     setIsSubmitting(true)
     try {
       await onSubmit(formData)
+      onCancel()
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Failed to save location')
       setIsSubmitting(false)

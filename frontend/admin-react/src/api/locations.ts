@@ -6,32 +6,28 @@ export const locationsApi = {
    * Get all locations
    */
   async getAll(): Promise<Location[]> {
-    const response = await apiClient.get('/admin/locations')
-    return response.data
+    return apiClient.get<Location[]>('/admin/locations')
   },
 
   /**
    * Get a specific location by ID
    */
   async getById(id: string): Promise<Location> {
-    const response = await apiClient.get(`/admin/locations/${id}`)
-    return response.data
+    return apiClient.get<Location>(`/admin/locations/${id}`)
   },
 
   /**
    * Create a new location
    */
   async create(data: LocationCreate): Promise<Location> {
-    const response = await apiClient.post('/admin/locations', data)
-    return response.data
+    return apiClient.post<Location>('/admin/locations', data)
   },
 
   /**
    * Update an existing location
    */
   async update(id: string, data: LocationUpdate): Promise<Location> {
-    const response = await apiClient.put(`/admin/locations/${id}`, data)
-    return response.data
+    return apiClient.put<Location>(`/admin/locations/${id}`, data)
   },
 
   /**

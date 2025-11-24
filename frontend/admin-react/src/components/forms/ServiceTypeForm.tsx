@@ -1,16 +1,36 @@
 import { useState, useEffect } from 'react'
 import type { ServiceType, ServiceTypeCreate, ServiceTypeUpdate } from '../../types/reference'
+import { SERVICE_TYPE_CODES } from '../../constants/serviceTypes'
 
 interface ServiceTypeFormProps {
   serviceType?: ServiceType
   onSubmit: (data: ServiceTypeCreate | ServiceTypeUpdate) => Promise<void>
   onCancel: () => void
+  existingCodes: string[]
 }
 
-export const ServiceTypeForm = ({ serviceType, onSubmit, onCancel }: ServiceTypeFormProps) => {
+export const ServiceTypeForm = ({
+  serviceType,
+  onSubmit,
+  onCancel,
+  existingCodes
+}: ServiceTypeFormProps) => {
+  const availableCodeOptions = SERVICE_TYPE_CODES.filter(option => {
+    if (serviceType?.code === option.value) {
+      return true
+    }
+    return !existingCodes?.includes(option.value)
+  })
+
+  const initialCode =
+    serviceType?.code ||
+    availableCodeOptions[0]?.value ||
+    SERVICE_TYPE_CODES.find(option => !existingCodes?.includes(option.value))?.value ||
+    SERVICE_TYPE_CODES[0].value
+
   const [formData, setFormData] = useState({
     name: serviceType?.name || '',
-    code: serviceType?.code || '',
+    code: initialCode,
     description: serviceType?.description || ''
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -35,16 +55,12 @@ export const ServiceTypeForm = ({ serviceType, onSubmit, onCancel }: ServiceType
       return
     }
 
-    if (!formData.code.trim()) {
-      setError('Code is required')
-      return
-    }
-
     setIsSubmitting(true)
     try {
       await onSubmit(formData)
+      onCancel()
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to save service type')
+      setError(err?.message || 'Failed to save service type')
       setIsSubmitting(false)
     }
   }
@@ -80,18 +96,26 @@ export const ServiceTypeForm = ({ serviceType, onSubmit, onCancel }: ServiceType
 
             <div className="form-group">
               <label htmlFor="code">Code *</label>
-              <input
+              <select
                 id="code"
-                type="text"
                 value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
-                placeholder="e.g., TRIGGER, FIXED, VARIABLE"
+                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
                 required
-                disabled={isSubmitting}
-                style={{ textTransform: 'uppercase' }}
-              />
+                disabled={isSubmitting || availableCodeOptions.length === 0}
+              >
+                {SERVICE_TYPE_CODES.map(option => {
+                  const inUse = existingCodes?.includes(option.value)
+                  const disabled =
+                    serviceType?.code === option.value ? false : inUse
+                  return (
+                    <option key={option.value} value={option.value} disabled={disabled}>
+                      {option.label} ({option.value})
+                    </option>
+                  )
+                })}
+              </select>
               <small style={{ color: '#718096', fontSize: '0.875rem' }}>
-                Service type code (all caps, used in services)
+                Code must map to one of the built-in service behaviors (Trigger, Fixed, Variable).
               </small>
             </div>
 
