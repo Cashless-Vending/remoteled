@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { ServiceType } from '../../types/reference'
 import { formatDateTime } from '../../utils/format'
+import { MAX_SERVICE_TYPE_COUNT } from '../../constants/serviceTypes'
 
 interface ServiceTypesTableProps {
   serviceTypes: ServiceType[]
@@ -12,6 +13,7 @@ interface ServiceTypesTableProps {
 export const ServiceTypesTable = ({ serviceTypes, onAdd, onEdit, onDelete }: ServiceTypesTableProps) => {
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const safeServiceTypes = serviceTypes || []
+  const reachedLimit = safeServiceTypes.length >= MAX_SERVICE_TYPE_COUNT
 
   const handleDelete = async (serviceTypeId: string, name: string) => {
     if (!window.confirm(`Are you sure you want to delete the service type "${name}"?`)) {
@@ -27,9 +29,21 @@ export const ServiceTypesTable = ({ serviceTypes, onAdd, onEdit, onDelete }: Ser
 
   return (
     <div className="card">
-      <div className="card-header">
-        <div className="card-title">Service Types</div>
-        <button className="btn btn-primary btn-sm" onClick={onAdd}>
+      <div className="card-header" style={{ gap: '0.75rem' }}>
+        <div>
+          <div className="card-title">Service Types</div>
+          {reachedLimit && (
+            <div style={{ fontSize: '0.85rem', color: '#718096', marginTop: '0.25rem' }}>
+              All built-in service behaviors are already configured. Edit existing entries to update copy.
+            </div>
+          )}
+        </div>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={onAdd}
+          disabled={reachedLimit}
+          title={reachedLimit ? 'All service type codes (TRIGGER/FIXED/VARIABLE) are already defined.' : undefined}
+        >
           + Add Service Type
         </button>
       </div>

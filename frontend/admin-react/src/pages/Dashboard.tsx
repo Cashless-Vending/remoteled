@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useDevices } from '../hooks/useDevices'
 import { useServices } from '../hooks/useServices'
 import { useStats } from '../hooks/useStats'
@@ -73,7 +73,8 @@ export const Dashboard = () => {
     createModel = async () => ({} as any),
     updateModel = async () => ({} as any),
     deleteModel = async () => {},
-    error: modelsError = null
+    error: modelsError = null,
+    fetchModels = async () => {}
   } = deviceModelsHook || {}
 
   const locationsHook = useLocations()
@@ -83,7 +84,8 @@ export const Dashboard = () => {
     createLocation = async () => ({} as any),
     updateLocation = async () => ({} as any),
     deleteLocation = async () => {},
-    error: locationsError = null
+    error: locationsError = null,
+    fetchLocations = async () => {}
   } = locationsHook || {}
 
   const serviceTypesHook = useServiceTypes()
@@ -123,6 +125,15 @@ export const Dashboard = () => {
 
   const isInitialLoading = devicesLoading || servicesLoading || statsLoading
   const fetchErrors: string[] = []  // Temporarily disabled
+
+  useEffect(() => {
+    if (devicesTab === 'models') {
+      fetchModels()
+    }
+    if (devicesTab === 'locations') {
+      fetchLocations()
+    }
+  }, [devicesTab, fetchModels, fetchLocations])
 
   const showFeedback = (type: FeedbackMessage['type'], message: string) => {
     setFeedback({ type, message })
@@ -652,6 +663,7 @@ export const Dashboard = () => {
             setShowServiceTypeForm(false)
             setEditingServiceType(null)
           }}
+          existingCodes={serviceTypes?.map(st => st.code) || []}
         />
       )}
     </>

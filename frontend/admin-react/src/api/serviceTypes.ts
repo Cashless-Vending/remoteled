@@ -6,32 +6,28 @@ export const serviceTypesApi = {
    * Get all service types
    */
   async getAll(): Promise<ServiceType[]> {
-    const response = await apiClient.get('/admin/service-types')
-    return response.data
+    return apiClient.get<ServiceType[]>('/admin/service-types')
   },
 
   /**
    * Get a specific service type by ID
    */
   async getById(id: string): Promise<ServiceType> {
-    const response = await apiClient.get(`/admin/service-types/${id}`)
-    return response.data
+    return apiClient.get<ServiceType>(`/admin/service-types/${id}`)
   },
 
   /**
    * Create a new service type
    */
   async create(data: ServiceTypeCreate): Promise<ServiceType> {
-    const response = await apiClient.post('/admin/service-types', data)
-    return response.data
+    return apiClient.post<ServiceType>('/admin/service-types', data)
   },
 
   /**
    * Update an existing service type
    */
   async update(id: string, data: ServiceTypeUpdate): Promise<ServiceType> {
-    const response = await apiClient.put(`/admin/service-types/${id}`, data)
-    return response.data
+    return apiClient.put<ServiceType>(`/admin/service-types/${id}`, data)
   },
 
   /**
