@@ -181,7 +181,7 @@ public class PaymentActivity extends AppCompatActivity {
             return;
         }
 
-        boolean skipLed = BuildConfig.DEMO_MODE || BuildConfig.DEBUG;
+        boolean skipLed = BuildConfig.DEBUG;
 
         StripePaymentTriggerRequest request = new StripePaymentTriggerRequest(
                 priceCents,

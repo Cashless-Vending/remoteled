@@ -29,7 +29,7 @@ export const DeviceCard = ({ device, onTestCycle, onTroubleshoot }: DeviceCardPr
         <p>📍 {device.location || 'No location set'}</p>
         <p>🔧 GPIO Pin: {device.gpio_pin ?? 'Not configured'}</p>
         <p>
-          📊 {device.active_service_count || 0} Active Products ({device.service_count || 0} total)
+          📊 {device.active_service_count || 0} Active Services ({device.service_count || 0} total)
         </p>
         <p>
           ✅ {device.completed_orders || 0} / {device.total_orders || 0} orders completed

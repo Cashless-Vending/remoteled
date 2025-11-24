@@ -25,6 +25,8 @@ export const DashboardLayout = ({
   headerSlot,
   children
 }: DashboardLayoutProps) => {
+  const safeNavItems = navItems || []
+  
   return (
     <div className="dashboard-shell">
       <aside className="dashboard-sidebar">
@@ -36,7 +38,7 @@ export const DashboardLayout = ({
           </div>
         </div>
         <nav className="sidebar-nav">
-          {navItems.map(({ id, label, icon }) => {
+          {safeNavItems.map(({ id, label, icon }) => {
             const isActive = id === activeItem
             return (
               <button

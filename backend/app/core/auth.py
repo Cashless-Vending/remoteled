@@ -1,5 +1,5 @@
 """
-Authentication utilities for JWT tokens and password hashing
+Authentication utilities for Firebase ID tokens and password hashing (legacy)
 """
 from datetime import datetime, timedelta
 from typing import Optional
@@ -9,8 +9,9 @@ from jose import JWTError, jwt
 import bcrypt
 from psycopg2.extras import RealDictCursor
 from app.core.database import get_db
+from app.services.firebase_admin import firebase_admin_service
 
-# Security configuration
+# Security configuration (legacy JWT - kept for backward compatibility)
 SECRET_KEY = "your-secret-key-change-in-production"  # TODO: Move to environment variable
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
@@ -35,7 +36,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(email: str, admin_id: str) -> str:
-    """Create a new JWT access token"""
+    """Create a new JWT access token (legacy)"""
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode = {
         "sub": email,
@@ -46,11 +47,14 @@ def create_access_token(email: str, admin_id: str) -> str:
     return encoded_jwt
 
 
-def get_current_user(
+async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
     cursor: RealDictCursor = Depends(get_db)
 ) -> dict:
-    """Get the current authenticated user from JWT token"""
+    """
+    Get the current authenticated user from Firebase ID token.
+    Falls back to legacy JWT for backward compatibility.
+    """
     token = credentials.credentials
     
     credentials_exception = HTTPException(
@@ -59,6 +63,38 @@ def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
+    # Try Firebase ID token first
+    firebase_user = await firebase_admin_service.verify_id_token(token)
+    if firebase_user:
+        email = firebase_user.get("email")
+        uid = firebase_user.get("uid")
+        
+        if not email or not uid:
+            raise credentials_exception
+        
+        # Check if user exists in database, create if not
+        cursor.execute(
+            "SELECT id, email, role FROM admins WHERE email = %s",
+            (email,)
+        )
+        user = cursor.fetchone()
+        
+        if not user:
+            # Auto-create admin user for Firebase authenticated users
+            cursor.execute(
+                """
+                INSERT INTO admins (email, password_hash, role)
+                VALUES (%s, %s, %s)
+                RETURNING id, email, role
+                """,
+                (email, '', 'admin')
+            )
+            cursor.connection.commit()
+            user = cursor.fetchone()
+        
+        return dict(user)
+    
+    # Fall back to legacy JWT token
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")

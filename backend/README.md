@@ -28,6 +28,9 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 # Edit .env with your database connection string
+# and set Stripe keys:
+#   STRIPE_SECRET_KEY=sk_test_xxx  (server-side secret)
+#   STRIPE_PUBLISHABLE_KEY=pk_test_xxx  (client-side publishable)
 ```
 
 ### 3. Ensure Database is Running
@@ -78,6 +81,7 @@ uv run --no-project uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 - `POST /payments/intent` - Create payment intent
 - `POST /payments/mock` - Process mock payment (development only)
+- `GET /payments/stripe/config` - Surface Stripe publishable key + config status
 
 ### Telemetry
 
@@ -264,6 +268,8 @@ Set these in production:
 - `API_DEBUG=False` - Disable debug mode
 - `ENABLE_MOCK_PAYMENT=False` - Disable mock payments
 - `CORS_ORIGINS` - Restrict to your frontend domains
+- `STRIPE_SECRET_KEY` - Stripe secret key (starts with `sk_`, required for live API calls)
+- `STRIPE_PUBLISHABLE_KEY` - Stripe publishable key (starts with `pk_`, exposed to clients)
 
 ### Run with Gunicorn
 
@@ -278,4 +284,3 @@ The API expects the RemoteLED PostgreSQL database to be set up. See `../database
 ## License
 
 See main project README
-

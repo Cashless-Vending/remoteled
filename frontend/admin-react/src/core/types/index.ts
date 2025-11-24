@@ -68,26 +68,24 @@ export interface DeviceUpdateRequest {
 }
 
 // ============================================================
-// Service/Product Types
+// Service Types (Global Services)
 // ============================================================
 
 export type ServiceType = 'TRIGGER' | 'FIXED' | 'VARIABLE';
 
 export interface Service {
   id: string;
-  device_id: string;
-  device_label?: string;
   type: ServiceType;
   price_cents: number;
   fixed_minutes?: number;
   minutes_per_25c?: number;
   active: boolean;
   created_at: string;
-  updated_at: string;
+  assigned_device_count?: number;
+  device_labels?: string[];
 }
 
 export interface ServiceCreateRequest {
-  device_id: string;
   type: ServiceType;
   price_cents: number;
   fixed_minutes?: number;
@@ -102,6 +100,13 @@ export interface ServiceUpdateRequest {
   active?: boolean;
 }
 
+export interface DeviceServiceAssignment {
+  id: string;
+  device_id: string;
+  service_id: string;
+  created_at: string;
+}
+
 // ============================================================
 // Order Types
 // ============================================================
@@ -112,8 +117,8 @@ export interface Order {
   id: string;
   device_id: string;
   device_label?: string;
-  product_id: string;
-  product_type?: ServiceType;
+  service_id: string;
+  service_type?: ServiceType;
   amount_cents: number;
   authorized_minutes: number;
   status: OrderStatus;

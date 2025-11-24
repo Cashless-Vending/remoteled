@@ -1,19 +1,25 @@
-import { API_BASE_URL, AUTH_TOKEN_KEY } from '../config/constants'
+import { API_BASE_URL } from '../config/constants'
+import { firebaseAuthService } from '../services/firebaseAuth'
 
 export interface ApiResponse<T> {
   data?: T
   error?: string
 }
 
-export const getAuthToken = (): string => {
-  return localStorage.getItem(AUTH_TOKEN_KEY) || ''
+/**
+ * Get Firebase ID token for authentication
+ */
+export const getAuthToken = async (): Promise<string> => {
+  const token = await firebaseAuthService.getIdToken()
+  return token || ''
 }
 
 export const apiClient = {
   async get<T>(endpoint: string): Promise<T> {
+    const token = await getAuthToken()
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
-        'Authorization': `Bearer ${getAuthToken()}`
+        'Authorization': `Bearer ${token}`
       }
     })
     
@@ -31,7 +37,8 @@ export const apiClient = {
     }
     
     if (requireAuth) {
-      headers['Authorization'] = `Bearer ${getAuthToken()}`
+      const token = await getAuthToken()
+      headers['Authorization'] = `Bearer ${token}`
     }
     
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -49,11 +56,12 @@ export const apiClient = {
   },
 
   async put<T>(endpoint: string, body: any): Promise<T> {
+    const token = await getAuthToken()
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getAuthToken()}`
+        'Authorization': `Bearer ${token}`
       },
       body: JSON.stringify(body)
     })
@@ -67,10 +75,11 @@ export const apiClient = {
   },
 
   async delete(endpoint: string): Promise<{ success: boolean; message: string }> {
+    const token = await getAuthToken()
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'DELETE',
       headers: {
-        'Authorization': `Bearer ${getAuthToken()}`
+        'Authorization': `Bearer ${token}`
       }
     })
     
@@ -82,4 +91,3 @@ export const apiClient = {
     return response.json()
   }
 }
-
