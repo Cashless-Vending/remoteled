@@ -90,16 +90,28 @@ class LEDController:
 
             if request_key == BLE_KEY:
                 if command == "ON":
-                    # Use LED service to turn on requested LED (turns off others first)
+                    # Solid ON - device is running
                     if led_service.set_color_exclusive(color):
                         led_state = f'{color}_on'
+                        print(f"[LED] {color.upper()} SOLID ON (device running)")
+                    else:
+                        print(f"Unknown color: {color}")
+
+                elif command == "BLINK":
+                    # Blink mode - payment processing
+                    times = data.get("times", 5)
+                    interval = data.get("interval", 0.5)
+                    if led_service.blink(color, times=times, interval=interval):
+                        led_state = f'{color}_blinking'
+                        print(f"[LED] {color.upper()} BLINKING (processing)")
                     else:
                         print(f"Unknown color: {color}")
 
                 elif command == "OFF":
-                    # Use LED service to turn off all LEDs
+                    # Turn off all LEDs - device stopped
                     led_service.turn_off_all()
                     led_state = 'off'
+                    print(f"[LED] ALL OFF (device stopped)")
 
                 elif command == "CONNECT":
                     print("New Device Connected")

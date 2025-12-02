@@ -23,19 +23,35 @@ router = APIRouter(prefix="/payments", tags=["payments"])
 # BACKGROUND LED TRIGGER HELPER
 # ============================================================================
 
-async def trigger_led_background(color: str, duration: int, device_id: str):
+async def trigger_led_background(color: str, device_id: str, mode: str = "blink"):
     """
     Trigger LED in background without blocking payment response.
     This runs asynchronously after payment is confirmed.
+
+    Args:
+        color: LED color (green, yellow, red)
+        device_id: Device ID
+        mode: LED mode - "blink" for processing, "on" for running, "off" for stopped
     """
     try:
         print(f"\n[Background LED] 🔍 Starting BLE scan for device {device_id}...")
-        print(f"[Background LED] 💡 Color: {color.upper()}, Duration: {duration}s")
+        print(f"[Background LED] 💡 Color: {color.upper()}, Mode: {mode.upper()}")
 
-        success = await led_handler.trigger_led(color=color, duration=duration)
+        if mode == "blink":
+            # Blink for payment processing
+            success = await led_handler.trigger_led_blink(color=color, times=5, interval=0.5)
+        elif mode == "on":
+            # Solid ON for device running
+            success = await led_handler.trigger_led_on(color=color)
+        elif mode == "off":
+            # Turn OFF for device stopped
+            success = await led_handler.trigger_led_off()
+        else:
+            print(f"[Background LED] ⚠️  Unknown mode: {mode}")
+            return
 
         if success:
-            print(f"[Background LED] ✅ LED triggered successfully!")
+            print(f"[Background LED] ✅ LED {mode.upper()} successful!")
         else:
             print(f"[Background LED] ⚠️  LED trigger failed (Pi not found or not reachable)")
     except Exception as e:
@@ -307,15 +323,28 @@ async def create_payment_and_trigger_led(
             print(f"[Payment+LED] Step 4: Payment confirmed!")
             print(f"[Payment+LED] Final status: {payment_intent.status}")
 
-        # Step 3: Determine LED color based on payment status
-        if payment_intent.status == "succeeded":
-            led_color = "green"
-        elif payment_intent.status in ["requires_action", "requires_confirmation"]:
-            led_color = "yellow"
-        else:
-            led_color = "red"
+        # Step 3: Get service type to determine LED color
+        led_color = "green"  # Default
+        service_type = None
 
-        print(f"\n[Payment+LED] 🎨 LED Color Decision: {led_color.upper()} (based on status: {payment_intent.status})")
+        if payment_req.order_id:
+            # Fetch the service type from the order
+            cursor.execute(
+                """
+                SELECT s.type
+                FROM orders o
+                JOIN services s ON o.service_id = s.id
+                WHERE o.id = %s
+                """,
+                (payment_req.order_id,)
+            )
+            order_service = cursor.fetchone()
+            if order_service:
+                service_type = order_service['type']
+                led_color = led_handler.get_led_color_for_service_type(service_type)
+                print(f"\n[Payment+LED] 🎨 Service Type: {service_type} → LED Color: {led_color.upper()}")
+            else:
+                print(f"\n[Payment+LED] ⚠️  Could not fetch service type, using default green")
 
         # Step 4: Update order status BEFORE triggering LED (payment is confirmed)
         if payment_req.order_id and payment_intent.status == "succeeded":
@@ -341,13 +370,13 @@ async def create_payment_and_trigger_led(
             created_at=payment_intent.created
         )
 
-        # Step 6: Trigger LED in background (non-blocking)
+        # Step 6: Trigger LED BLINK in background (non-blocking) - payment processing
         if not payment_req.skip_led:
-            print(f"[Payment+LED] 🚀 Scheduling LED trigger in background (non-blocking)...")
-            print(f"[Payment+LED] 💡 LED will trigger asynchronously on device {payment_req.device_id}")
+            print(f"[Payment+LED] 🚀 Scheduling LED BLINK in background (processing state)...")
+            print(f"[Payment+LED] 💡 Color: {led_color.upper()} (service: {service_type})")
             # Create background task - doesn't block response
             asyncio.create_task(
-                trigger_led_background(led_color, payment_req.duration_seconds, payment_req.device_id)
+                trigger_led_background(led_color, payment_req.device_id, mode="blink")
             )
         else:
             print("[Payment+LED] ⚙️  Skip LED flag set — not triggering BLE for this request.")
@@ -371,11 +400,11 @@ async def create_payment_and_trigger_led(
                 ("FAILED", payment_req.order_id)
             )
 
-        # Trigger red LED in background (non-blocking)
+        # Trigger red LED BLINK in background for failed payment
         if not payment_req.skip_led:
-            print(f"[Payment+LED] 🚀 Triggering RED LED in background for failed payment...")
+            print(f"[Payment+LED] 🚀 Triggering RED LED BLINK for failed payment...")
             asyncio.create_task(
-                trigger_led_background("red", payment_req.duration_seconds, payment_req.device_id)
+                trigger_led_background("red", payment_req.device_id, mode="blink")
             )
 
         raise HTTPException(status_code=400, detail=f"Stripe error: {str(e)}")
