@@ -68,13 +68,14 @@ echo -e "${YELLOW}[4/4] Starting BLE Peripheral...${NC}"
 cd "$REPO_ROOT/pi/python"
 
 # Kill any existing BLE process
-sudo pkill -f "python3 code.py" || true
+sudo pkill -f "python.*code.py" || true
 sleep 1
 
 # Start BLE in background with proper environment
 export API_BASE_URL="http://${MACOS_SERVER_IP}:${BACKEND_PORT}"
 export DEVICE_ID=$(cat "$DEVICE_ID_FILE" | tr -d ' \r\n')
-nohup sudo -E bash -c "cd $REPO_ROOT/pi/python && DEVICE_ID=$DEVICE_ID API_BASE_URL=$API_BASE_URL python3 code.py" > /tmp/remoteled_ble.log 2>&1 &
+UV_PATH=$(which uv)
+nohup sudo -E bash -c "cd $REPO_ROOT && DEVICE_ID=$DEVICE_ID API_BASE_URL=$API_BASE_URL $UV_PATH run --extra pi python pi/python/code.py" > /tmp/remoteled_ble.log 2>&1 &
 BLE_PID=$!
 echo "Waiting for BLE to initialize..."
 sleep 4
@@ -124,7 +125,7 @@ echo "To open kiosk in Chrome:"
 echo "  cd $REPO_ROOT/pi && ./kiosk.sh"
 echo ""
 echo "To stop BLE service:"
-echo "  sudo pkill -f 'python3 code.py'"
+echo "  sudo pkill -f 'python.*code.py'"
 echo ""
 echo "Press Ctrl+C to monitor BLE logs (service will keep running)..."
 echo ""

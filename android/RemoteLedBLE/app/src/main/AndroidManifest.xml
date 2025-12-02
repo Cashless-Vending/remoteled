@@ -97,10 +97,24 @@
                     android:host="your-api.com"
                     android:pathPrefix="/detail" />
 
-                <!-- For local testing with ngrok or similar -->
+                <!-- For local testing - explicit IP addresses -->
                 <data
                     android:scheme="http"
-                    android:host="*"
+                    android:host="192.168.1.99"
+                    android:port="9999"
+                    android:pathPrefix="/detail" />
+
+                <!-- Additional common local IPs -->
+                <data
+                    android:scheme="http"
+                    android:host="192.168.1.158"
+                    android:port="9999"
+                    android:pathPrefix="/detail" />
+
+                <data
+                    android:scheme="http"
+                    android:host="localhost"
+                    android:port="9999"
                     android:pathPrefix="/detail" />
             </intent-filter>
         </activity>
