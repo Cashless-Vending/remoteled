@@ -181,7 +181,7 @@ public class PaymentActivity extends AppCompatActivity {
             return;
         }
 
-        boolean skipLed = BuildConfig.DEBUG;
+        boolean skipLed = false;  // Enable LED triggering
 
         StripePaymentTriggerRequest request = new StripePaymentTriggerRequest(
                 priceCents,
