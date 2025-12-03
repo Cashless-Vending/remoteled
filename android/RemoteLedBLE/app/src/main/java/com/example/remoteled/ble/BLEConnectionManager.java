@@ -131,7 +131,7 @@ public class BLEConnectionManager {
     public void sendBlinkCommand(String color) {
         // Blink continuously until explicitly stopped
         // 9999 times = effectively infinite blinking
-        sendCommand("BLINK", color, 9999, 0.5, 0);
+        sendCommand("BLINK", color, 9999, 0.1, 0);
     }
 
     public void sendOnCommand(String color) {

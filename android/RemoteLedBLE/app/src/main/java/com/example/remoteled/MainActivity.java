@@ -377,6 +377,10 @@ public class MainActivity extends AppCompatActivity {
                         // Initialize singleton BLE manager
                         BLEConnectionManager.getInstance().initialize(bluetoothGatt, characteristic, bleKey);
 
+                        // Turn RED LED solid ON when BLE connection succeeds
+                        BLEConnectionManager.getInstance().sendOnCommand("red");
+                        Log.d(TAG, "BLE connected successfully - RED LED solid ON");
+
                         enableControlButtons(true); // handshake complete
                         // If we came from QR and have a deviceId, navigate into app flow
                         if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
@@ -385,8 +389,6 @@ public class MainActivity extends AppCompatActivity {
                                 i.putExtra("DEVICE_ID", scannedDeviceId);
                                 startActivity(i);
                                 // Don't finish - keep MainActivity alive to maintain GATT connection
-                                // The BLEConnectionManager holds references to bluetoothGatt which lives in MainActivity
-                                moveTaskToBack(true); // Move to background instead of finishing
                             });
                         }
                         if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
