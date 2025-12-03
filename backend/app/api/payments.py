@@ -370,18 +370,8 @@ async def create_payment_and_trigger_led(
             created_at=payment_intent.created
         )
 
-        # Step 6: Trigger LED BLINK in background (non-blocking) - payment processing
-        if not payment_req.skip_led:
-            print(f"[Payment+LED] 🚀 Scheduling LED BLINK in background (processing state)...")
-            print(f"[Payment+LED] 💡 Color: {led_color.upper()} (service: {service_type})")
-            # Create background task - doesn't block response
-            asyncio.create_task(
-                trigger_led_background(led_color, payment_req.device_id, mode="blink")
-            )
-        else:
-            print("[Payment+LED] ⚙️  Skip LED flag set — not triggering BLE for this request.")
-
-        print(f"[Payment+LED] ✅ Payment response returned (LED triggering in background)")
+        # LED control is now handled by the app directly via /led/control endpoint
+        print(f"[Payment+LED] ✅ Payment response returned (LED controlled by app)")
         print(f"{'='*60}\n")
 
         return response
@@ -400,13 +390,7 @@ async def create_payment_and_trigger_led(
                 ("FAILED", payment_req.order_id)
             )
 
-        # Trigger red LED BLINK in background for failed payment
-        if not payment_req.skip_led:
-            print(f"[Payment+LED] 🚀 Triggering RED LED BLINK for failed payment...")
-            asyncio.create_task(
-                trigger_led_background("red", payment_req.device_id, mode="blink")
-            )
-
+        # LED control is now handled by the app
         raise HTTPException(status_code=400, detail=f"Stripe error: {str(e)}")
 
     except Exception as e:

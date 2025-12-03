@@ -11,8 +11,11 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.remoteled.ble.BLEManager;
+import com.example.remoteled.ble.BleConfig;
 import com.example.remoteled.models.Order;
 import com.example.remoteled.models.requests.CreateOrderRequest;
+import com.example.remoteled.models.requests.LEDControlRequest;
 import com.example.remoteled.models.StripePaymentTriggerResponse;
 import com.example.remoteled.models.requests.StripePaymentTriggerRequest;
 import com.example.remoteled.network.RetrofitClient;
@@ -45,6 +48,9 @@ public class PaymentActivity extends AppCompatActivity {
     
     // Created order
     private Order createdOrder;
+
+    // BLE
+    private BLEManager bleManager;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -58,6 +64,9 @@ public class PaymentActivity extends AppCompatActivity {
         initViews();
         setupListeners();
         displaySummary();
+
+        // Initialize BLE connection
+        initBluetoothConnection();
     }
     
     private void getIntentData() {
@@ -139,11 +148,11 @@ public class PaymentActivity extends AppCompatActivity {
     
     private void createOrder() {
         showLoading();
-        
+
         CreateOrderRequest request = new CreateOrderRequest(deviceId, serviceId, priceCents);
-        
+
         Log.d(TAG, "Creating order...");
-        
+
         RetrofitClient.getInstance()
                 .getApiService()
                 .createOrder(request)
@@ -181,6 +190,9 @@ public class PaymentActivity extends AppCompatActivity {
             return;
         }
 
+        // Start YELLOW LED blink to indicate payment processing
+        startYellowLEDBlink();
+
         boolean skipLed = false;  // Enable LED triggering
 
         StripePaymentTriggerRequest request = new StripePaymentTriggerRequest(
@@ -208,10 +220,16 @@ public class PaymentActivity extends AppCompatActivity {
                             StripePaymentTriggerResponse result = response.body();
                             Log.d(TAG, "Stripe payment success. PaymentIntent: " + result.getPaymentIntentId());
                             Log.d(TAG, "Payment status: " + result.getPaymentStatus());
+
+                            // Stop YELLOW LED on payment success
+                            stopYellowLED();
+
                             createdOrder.setStatus("PAID");
                             navigateToProcessing();
                         } else {
                             Log.e(TAG, "Stripe payment API error: " + response.code());
+                            // Stop YELLOW LED on payment failure
+                            stopYellowLED();
                             showError("Stripe payment failed");
                         }
                     }
@@ -220,6 +238,8 @@ public class PaymentActivity extends AppCompatActivity {
                     public void onFailure(Call<StripePaymentTriggerResponse> call, Throwable t) {
                         Log.e(TAG, "Stripe payment network error: " + t.getMessage(), t);
                         hideLoading();
+                        // Stop YELLOW LED on network error
+                        stopYellowLED();
                         showError("Network error during Stripe payment");
                     }
                 });
@@ -253,8 +273,61 @@ public class PaymentActivity extends AppCompatActivity {
         payButton.setAlpha(1.0f);
     }
     
+    private void initBluetoothConnection() {
+        Log.d(TAG, "Initializing BLE connection for payment...");
+
+        bleManager = new BLEManager(
+            this,
+            BleConfig.MAC_ADDRESS,
+            BleConfig.SERVICE_UUID,
+            BleConfig.CHARACTERISTIC_UUID,
+            BleConfig.BLE_KEY
+        );
+
+        bleManager.connect(new BLEManager.ConnectionCallback() {
+            @Override
+            public void onConnected() {
+                Log.d(TAG, "BLE connected for payment processing");
+            }
+
+            @Override
+            public void onDisconnected() {
+                Log.d(TAG, "BLE disconnected");
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "BLE connection error: " + error);
+                // Continue without BLE - don't block payment flow
+            }
+        });
+    }
+
+    private void startYellowLEDBlink() {
+        if (bleManager != null && bleManager.isConnected()) {
+            Log.d(TAG, "Starting YELLOW LED blink for payment processing");
+            bleManager.sendBlinkCommand(BleConfig.COLOR_YELLOW);
+        }
+    }
+
+    private void stopYellowLED() {
+        if (bleManager != null && bleManager.isConnected()) {
+            Log.d(TAG, "Stopping YELLOW LED");
+            bleManager.sendOffCommand();
+        }
+    }
+
     private void showError(String message) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Disconnect BLE when activity is destroyed
+        if (bleManager != null) {
+            bleManager.disconnect();
+        }
     }
 }
 

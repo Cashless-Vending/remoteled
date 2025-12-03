@@ -3,6 +3,7 @@ package com.example.remoteled;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.CountDownTimer;
+import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -11,6 +12,9 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.remoteled.ble.BLEManager;
+import com.example.remoteled.ble.BleConfig;
+import com.example.remoteled.models.Order;
 import com.example.remoteled.models.requests.TelemetryRequest;
 import com.example.remoteled.network.RetrofitClient;
 
@@ -50,6 +54,14 @@ public class RunningActivity extends AppCompatActivity {
     private CountDownTimer countDownTimer;
     private long remainingTimeMillis;
     private Date startTime;
+
+    // BLE
+    private BLEManager bleManager;
+
+    // Status polling
+    private Handler statusPollHandler = new Handler();
+    private static final int POLL_INTERVAL_MS = 3000;  // 3 seconds
+    private boolean isPolling = false;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,12 +75,18 @@ public class RunningActivity extends AppCompatActivity {
         initViews();
         setupListeners();
         displayDetails();
-        
-        // Send STARTED telemetry
+
+        // Initialize BLE connection
+        initBluetoothConnection();
+
+        // Send STARTED telemetry and turn on GREEN LED
         sendTelemetry("STARTED");
-        
+
         // Start countdown
         startCountdown();
+
+        // Start polling order status
+        startStatusPolling();
     }
     
     private void getIntentData() {
@@ -205,15 +223,22 @@ public class RunningActivity extends AppCompatActivity {
     
     private void sendTelemetry(String event) {
         Log.d(TAG, "Sending telemetry: " + event + " for order: " + orderId);
-        
+
+        // Control GREEN LED based on event
+        if (event.equals("STARTED")) {
+            startGreenLED();
+        } else if (event.equals("DONE")) {
+            stopGreenLED();
+        }
+
         TelemetryRequest request = new TelemetryRequest(event, orderId);
-        
+
         RetrofitClient.getInstance()
                 .getApiService()
                 .sendTelemetry(deviceId, request)
                 .enqueue(new Callback<Map<String, Object>>() {
                     @Override
-                    public void onResponse(Call<Map<String, Object>> call, 
+                    public void onResponse(Call<Map<String, Object>> call,
                                          Response<Map<String, Object>> response) {
                         if (response.isSuccessful()) {
                             Log.d(TAG, "Telemetry " + event + " sent successfully");
@@ -221,7 +246,7 @@ public class RunningActivity extends AppCompatActivity {
                             Log.w(TAG, "Telemetry failed: " + response.code());
                         }
                     }
-                    
+
                     @Override
                     public void onFailure(Call<Map<String, Object>> call, Throwable t) {
                         Log.e(TAG, "Telemetry network error: " + t.getMessage());
@@ -248,11 +273,135 @@ public class RunningActivity extends AppCompatActivity {
         finish();
     }
     
+    private void initBluetoothConnection() {
+        Log.d(TAG, "Initializing BLE connection for device running...");
+
+        bleManager = new BLEManager(
+            this,
+            BleConfig.MAC_ADDRESS,
+            BleConfig.SERVICE_UUID,
+            BleConfig.CHARACTERISTIC_UUID,
+            BleConfig.BLE_KEY
+        );
+
+        bleManager.connect(new BLEManager.ConnectionCallback() {
+            @Override
+            public void onConnected() {
+                Log.d(TAG, "BLE connected for device monitoring");
+            }
+
+            @Override
+            public void onDisconnected() {
+                Log.d(TAG, "BLE disconnected");
+            }
+
+            @Override
+            public void onError(String error) {
+                Log.e(TAG, "BLE connection error: " + error);
+                // Continue without BLE - don't block device monitoring
+            }
+        });
+    }
+
+    private void startGreenLED() {
+        if (bleManager != null && bleManager.isConnected()) {
+            Log.d(TAG, "Starting GREEN LED (device running)");
+            bleManager.sendOnCommand(BleConfig.COLOR_GREEN);
+        }
+    }
+
+    private void stopGreenLED() {
+        if (bleManager != null && bleManager.isConnected()) {
+            Log.d(TAG, "Stopping GREEN LED (device done)");
+            bleManager.sendOffCommand();
+        }
+    }
+
+    private void startStatusPolling() {
+        if (isPolling) {
+            Log.w(TAG, "Status polling already running");
+            return;
+        }
+
+        isPolling = true;
+        Log.d(TAG, "Starting order status polling (every " + POLL_INTERVAL_MS + "ms)");
+        pollOrderStatus();
+    }
+
+    private void stopStatusPolling() {
+        isPolling = false;
+        statusPollHandler.removeCallbacksAndMessages(null);
+        Log.d(TAG, "Stopped order status polling");
+    }
+
+    private void pollOrderStatus() {
+        if (!isPolling) {
+            return;
+        }
+
+        Log.d(TAG, "Polling order status for: " + orderId);
+
+        RetrofitClient.getInstance()
+                .getApiService()
+                .getOrder(orderId)
+                .enqueue(new Callback<Order>() {
+                    @Override
+                    public void onResponse(Call<Order> call, Response<Order> response) {
+                        if (response.isSuccessful() && response.body() != null) {
+                            Order order = response.body();
+                            String status = order.getStatus();
+                            Log.d(TAG, "Order status: " + status);
+
+                            // Check if order is done
+                            if ("DONE".equals(status)) {
+                                Log.d(TAG, "Order status changed to DONE - stopping device");
+                                stopStatusPolling();
+                                stopGreenLED();
+
+                                // Send DONE telemetry if not already sent
+                                sendTelemetry("DONE");
+
+                                // Navigate to success screen
+                                navigateToSuccess();
+                            } else {
+                                // Schedule next poll
+                                scheduleNextPoll();
+                            }
+                        } else {
+                            Log.w(TAG, "Failed to fetch order status: " + response.code());
+                            scheduleNextPoll();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<Order> call, Throwable t) {
+                        Log.e(TAG, "Error polling order status: " + t.getMessage());
+                        scheduleNextPoll();
+                    }
+                });
+    }
+
+    private void scheduleNextPoll() {
+        if (isPolling) {
+            statusPollHandler.postDelayed(this::pollOrderStatus, POLL_INTERVAL_MS);
+        }
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
+
+        // Stop polling
+        stopStatusPolling();
+
+        // Cancel countdown timer
         if (countDownTimer != null) {
             countDownTimer.cancel();
+        }
+
+        // Disconnect BLE
+        if (bleManager != null) {
+            bleManager.disconnect();
         }
     }
 }
