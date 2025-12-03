@@ -21,6 +21,7 @@ import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.example.remoteled.ble.BLEConnectionManager;
 import com.example.remoteled.models.requests.LEDControlRequest;
 import com.example.remoteled.network.RetrofitClient;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -92,6 +93,10 @@ public class QRCodeScannerActivity extends AppCompatActivity {
 
     private void handleStartScanButtonClick() {
         android.util.Log.d(LOG_TAG, "Start Scan button tapped (cameraStarted=" + cameraStarted + ")");
+
+        // Start RED LED blinking when scan button is clicked
+        BLEConnectionManager.getInstance().sendBlinkCommand("red");
+
         if (cameraStarted) {
             statusText.setText(R.string.scan_status_scanning);
             return;
