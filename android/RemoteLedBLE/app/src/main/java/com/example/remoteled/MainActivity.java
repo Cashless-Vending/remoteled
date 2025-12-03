@@ -376,7 +376,9 @@ public class MainActivity extends AppCompatActivity {
                                 Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
                                 i.putExtra("DEVICE_ID", scannedDeviceId);
                                 startActivity(i);
-                                finish(); // BLEConnectionManager singleton maintains the connection
+                                // Don't finish - keep MainActivity alive to maintain GATT connection
+                                // The BLEConnectionManager holds references to bluetoothGatt which lives in MainActivity
+                                moveTaskToBack(true); // Move to background instead of finishing
                             });
                         }
                         if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
