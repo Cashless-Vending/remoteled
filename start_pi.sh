@@ -106,6 +106,12 @@ sudo rm -f /tmp/remoteled_ble.log
 sudo touch /tmp/remoteled_ble.log
 sudo chmod 666 /tmp/remoteled_ble.log
 
+# Clear stale QR data file (prevents showing old "CONNECTED" message)
+echo "  Clearing stale QR data..."
+sudo mkdir -p /var/www/html
+echo '{"message":"Starting...","timestamp":0}' | sudo tee /var/www/html/qr_data.json > /dev/null
+sudo chmod 666 /var/www/html/qr_data.json
+
 # Start BLE using uv run (this ensures all dependencies are available)
 echo "  Starting BLE service with uv run..."
 cd "$REPO_ROOT"
@@ -140,19 +146,30 @@ echo ""
 echo -e "${YELLOW}Waiting for QR code generation...${NC}"
 sleep 2
 
-# Check if QR data is ready
-if [ -f "/var/www/html/qr_data.json" ]; then
-    QR_CONTENT=$(cat /var/www/html/qr_data.json 2>/dev/null)
-    if echo "$QR_CONTENT" | grep -q "http"; then
-        QR_URL=$(echo "$QR_CONTENT" | grep -o 'http[^"]*' | head -1)
-        echo -e "${GREEN}✓ QR Code ready!${NC}"
-        echo -e "  Detail URL: $QR_URL"
-    else
-        echo -e "${YELLOW}⚠ QR data exists but no URL yet${NC}"
-        echo "  Content: $QR_CONTENT"
+# Check if QR data is ready (retry a few times)
+echo -e "${YELLOW}Checking QR code status...${NC}"
+QR_READY=false
+for i in 1 2 3 4 5; do
+    if [ -f "/var/www/html/qr_data.json" ]; then
+        QR_CONTENT=$(cat /var/www/html/qr_data.json 2>/dev/null)
+        if echo "$QR_CONTENT" | grep -q "http.*detail"; then
+            QR_URL=$(echo "$QR_CONTENT" | grep -o 'http[^"]*' | head -1)
+            echo -e "${GREEN}✓ QR Code ready!${NC}"
+            echo -e "  Detail URL: $QR_URL"
+            QR_READY=true
+            break
+        fi
     fi
-else
-    echo -e "${YELLOW}⚠ QR data file not found${NC}"
+    echo "  Waiting for QR code... (attempt $i/5)"
+    sleep 1
+done
+
+if [ "$QR_READY" = false ]; then
+    echo -e "${YELLOW}⚠ QR code not ready yet${NC}"
+    if [ -f "/var/www/html/qr_data.json" ]; then
+        echo "  Current content: $(cat /var/www/html/qr_data.json)"
+    fi
+    echo "  Check BLE logs for errors"
 fi
 echo ""
 

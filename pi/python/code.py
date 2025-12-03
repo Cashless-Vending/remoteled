@@ -39,13 +39,35 @@ def publish_qr_code(deep_link):
     """Write QR data to file for web page to read"""
     global WEB_MESSAGE
     WEB_MESSAGE = deep_link
+    # Use current timestamp in milliseconds
     data = {'message': deep_link, 'timestamp': int(time.time() * 1000)}
+    
     try:
-        with open(QR_DATA_FILE, 'w') as f:
+        # Ensure directory exists
+        qr_dir = os.path.dirname(QR_DATA_FILE)
+        if qr_dir and not os.path.exists(qr_dir):
+            os.makedirs(qr_dir, exist_ok=True)
+        
+        # Write to temp file first, then rename (atomic write)
+        temp_file = QR_DATA_FILE + '.tmp'
+        with open(temp_file, 'w') as f:
             json.dump(data, f)
-        print(f"[QR] Published: {deep_link[:60]}..." if len(deep_link) > 60 else f"[QR] Published: {deep_link}")
+        
+        # Move temp file to actual file (atomic)
+        os.replace(temp_file, QR_DATA_FILE)
+        
+        # Make sure file is readable by nginx
+        os.chmod(QR_DATA_FILE, 0o666)
+        
+        display_link = deep_link[:60] + "..." if len(deep_link) > 60 else deep_link
+        print(f"[QR] ✅ Published: {display_link}")
+        
+    except PermissionError as e:
+        print(f"[QR] ❌ Permission denied writing to {QR_DATA_FILE}")
+        print(f"[QR] ❌ Run: sudo chmod 666 {QR_DATA_FILE}")
+        print(f"[QR] ❌ Error: {e}")
     except Exception as e:
-        print(f"[QR] Error writing file: {e}")
+        print(f"[QR] ❌ Error writing file: {e}")
 
 
 def init_led_service():
