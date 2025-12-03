@@ -162,27 +162,9 @@ public class ProcessingActivity extends AppCompatActivity {
     }
     
     private void activateLED() {
-        int ledIndex = 1;  // Middle LED
-        int ledDrawable;
-        String statusText;
-        
-        switch (serviceType) {
-            case "TRIGGER":
-                ledDrawable = R.drawable.led_circle_blue;
-                statusText = "🔵 Blue Blink - TRIGGER";
-                break;
-            case "FIXED":
-                ledDrawable = R.drawable.led_circle_green;
-                statusText = "🟢 Green Solid - FIXED";
-                break;
-            case "VARIABLE":
-                ledDrawable = R.drawable.led_circle_amber;
-                statusText = "🟠 Amber Solid - VARIABLE";
-                break;
-            default:
-                ledDrawable = R.drawable.led_circle_green;
-                statusText = "Device activated";
-        }
+        // All service types use GREEN LED when payment succeeds
+        int ledDrawable = R.drawable.led_circle_green;
+        String statusText = "🟢 Payment Successful - Service Starting";
         
         led2.setBackgroundResource(ledDrawable);
         ledStatusText.setText(statusText);
