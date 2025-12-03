@@ -34,7 +34,9 @@ trigger = threading.Event()
 current_peripheral = None  # Reference to track the current peripheral object
 led_peripheral = None
 WEB_MESSAGE = "Loading Bluetooth..."
-STATE_FILE = '/var/www/html/state.json'  # For React kiosk
+# Path to state.json for React kiosk (relative to home directory)
+HOME_DIR = os.path.expanduser('~')
+STATE_FILE = os.path.join(HOME_DIR, 'remoteled/pi/kiosk/build/state.json')
 DETAIL_URL = None  # Store detail URL to show QR code again after service ends
 
 print(f"[BLE Config] Service UUID: {SERVICE_UUID}")
