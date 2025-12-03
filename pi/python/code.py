@@ -34,7 +34,7 @@ trigger = threading.Event()
 current_peripheral = None  # Reference to track the current peripheral object
 led_peripheral = None
 WEB_MESSAGE = "Loading Bluetooth..."
-QR_DATA_FILE = '/var/www/html/qr_data.json'
+STATE_FILE = '/var/www/html/state.json'  # For React kiosk
 DETAIL_URL = None  # Store detail URL to show QR code again after service ends
 
 print(f"[BLE Config] Service UUID: {SERVICE_UUID}")
@@ -45,17 +45,28 @@ print(f"[Machine Config] Device ID: {DEVICE_ID}")
 print(f"[Machine Config] API Base URL: {API_BASE_URL}")
 
 
-# Write QR data to file for web page to read
-def publish_qr_code(deep_link):
+# Write state to file for React kiosk to read
+def publish_qr_code(qr_url):
     global WEB_MESSAGE
-    WEB_MESSAGE = deep_link
-    data = {'message': deep_link, 'timestamp': int(time.time() * 1000)}
+    WEB_MESSAGE = qr_url
+    data = {'qr_url': qr_url, 'status': 'QR', 'timestamp': int(time.time() * 1000)}
     try:
-        with open(QR_DATA_FILE, 'w') as f:
+        with open(STATE_FILE, 'w') as f:
             json.dump(data, f)
-        print(f"Deep link written to file: {deep_link}")
+        print(f"QR code published: {qr_url}")
     except Exception as e:
-        print(f"Error writing QR data file: {e}")
+        print(f"Error writing state file: {e}")
+
+def publish_status(status, duration_seconds=0):
+    data = {'status': status, 'timestamp': int(time.time() * 1000)}
+    if duration_seconds > 0:
+        data['duration_seconds'] = duration_seconds
+    try:
+        with open(STATE_FILE, 'w') as f:
+            json.dump(data, f)
+        print(f"Status published: {status}")
+    except Exception as e:
+        print(f"Error writing state file: {e}")
 
 
 class LEDController:
@@ -64,7 +75,7 @@ class LEDController:
     @classmethod
     def on_connect(cls, ble_device):
         global WEB_MESSAGE
-        publish_qr_code("CONNECTED!")
+        publish_status("CONNECTED")
         print("Connected to BLE device: ", ble_device)
 
     @classmethod
@@ -96,20 +107,11 @@ class LEDController:
                         led_state = f'{color}_on'
                         print(f"[LED] {color.upper()} SOLID ON (device running)")
 
-                        # If GREEN LED and order info provided, show status page
+                        # If GREEN LED and duration provided, show timer
                         if color == "green" and "duration" in data:
-                            order_status = {
-                                'status': 'RUNNING',
-                                'start_time': int(time.time()),
-                                'duration_seconds': data.get('duration', 30),
-                                'timestamp': int(time.time() * 1000)
-                            }
-                            try:
-                                with open(QR_DATA_FILE, 'w') as f:
-                                    json.dump(order_status, f)
-                                print(f"[Status] Order running for {data.get('duration')}s")
-                            except Exception as e:
-                                print(f"Error writing order status: {e}")
+                            duration = data.get('duration', 30)
+                            publish_status("RUNNING", duration)
+                            print(f"[Status] Service running for {duration}s")
                     else:
                         print(f"Unknown color: {color}")
 
@@ -129,14 +131,14 @@ class LEDController:
                     led_state = 'off'
                     print(f"[LED] ALL OFF (device stopped)")
 
-                    # Show QR code again for next user
+                    # Return to QR code for next user
                     if DETAIL_URL:
                         publish_qr_code(DETAIL_URL)
-                        print("[Status] Returning to QR code for next user")
+                        print("[Status] Returning to QR code")
 
                 elif command == "CONNECT":
                     print("New Device Connected")
-                    publish_qr_code("CONNECTED!")
+                    publish_status("CONNECTED")
                 else:
                     print("Unknown command received")
 

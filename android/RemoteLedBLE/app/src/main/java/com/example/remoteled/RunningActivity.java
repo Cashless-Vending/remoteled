@@ -316,7 +316,7 @@ public class RunningActivity extends AppCompatActivity {
                                 }
                                 scheduleNextPoll();
                             }
-                            // Turn GREEN LED OFF and navigate when status is DONE
+                            // Turn GREEN LED OFF when status is DONE
                             else if ("DONE".equals(status)) {
                                 Log.d(TAG, "Order status is DONE - stopping device");
                                 stopStatusPolling();
@@ -324,7 +324,7 @@ public class RunningActivity extends AppCompatActivity {
                                     stopGreenLED();
                                     isGreenLEDOn = false;
                                 }
-                                navigateToQRScreen();
+                                // Stay on this screen - don't navigate back
                             }
                             // For other statuses (PAID, CREATED, etc.), keep polling
                             else {

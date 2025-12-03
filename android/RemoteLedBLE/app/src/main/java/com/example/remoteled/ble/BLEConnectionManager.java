@@ -67,10 +67,9 @@ public class BLEConnectionManager {
     }
 
     public void sendOffCommand() {
-        // Turn off ALL LEDs by sending OFF for each color
-        sendCommand("OFF", "red", 0, 0, 0);
-        sendCommand("OFF", "yellow", 0, 0, 0);
-        sendCommand("OFF", "green", 0, 0, 0);
+        // Turn off ALL LEDs with single command
+        // Pi side handles turning off all colors
+        sendCommand("OFF", "all", 0, 0, 0);
     }
 
     private void sendCommand(String command, String color, int times, double interval, int duration) {
