@@ -55,18 +55,25 @@ public class BLEConnectionManager {
     public void sendBlinkCommand(String color) {
         // Blink continuously until explicitly stopped
         // 9999 times = effectively infinite blinking
-        sendCommand("BLINK", color, 9999, 0.5);
+        sendCommand("BLINK", color, 9999, 0.5, 0);
     }
 
     public void sendOnCommand(String color) {
-        sendCommand("ON", color, 0, 0);
+        sendCommand("ON", color, 0, 0, 0);
+    }
+
+    public void sendOnCommand(String color, int durationSeconds) {
+        sendCommand("ON", color, 0, 0, durationSeconds);
     }
 
     public void sendOffCommand() {
-        sendCommand("OFF", "red", 0, 0);
+        // Turn off ALL LEDs by sending OFF for each color
+        sendCommand("OFF", "red", 0, 0, 0);
+        sendCommand("OFF", "yellow", 0, 0, 0);
+        sendCommand("OFF", "green", 0, 0, 0);
     }
 
-    private void sendCommand(String command, String color, int times, double interval) {
+    private void sendCommand(String command, String color, int times, double interval, int duration) {
         if (!isConnected()) {
             Log.w(TAG, "Not connected, cannot send command: " + command);
             return;
@@ -80,6 +87,9 @@ public class BLEConnectionManager {
             if (times > 0) {
                 json.put("times", times);
                 json.put("interval", interval);
+            }
+            if (duration > 0) {
+                json.put("duration", duration);
             }
 
             String payload = json.toString();

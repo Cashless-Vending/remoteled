@@ -260,8 +260,9 @@ public class RunningActivity extends AppCompatActivity {
     }
     
     private void startGreenLED() {
-        BLEConnectionManager.getInstance().sendOnCommand("green");
-        Log.d(TAG, "Started GREEN LED");
+        // Send GREEN ON with 30-second duration for Pi status page
+        BLEConnectionManager.getInstance().sendOnCommand("green", 30);
+        Log.d(TAG, "Started GREEN LED with 30s duration");
     }
 
     private void stopGreenLED() {
@@ -307,8 +308,11 @@ public class RunningActivity extends AppCompatActivity {
                             // Turn GREEN LED ON when status is RUNNING (only once)
                             if ("RUNNING".equals(status)) {
                                 if (!isGreenLEDOn) {
-                                    startGreenLED();
-                                    isGreenLEDOn = true;
+                                    // Add 500ms delay to avoid GPIO timing conflicts
+                                    statusPollHandler.postDelayed(() -> {
+                                        startGreenLED();
+                                        isGreenLEDOn = true;
+                                    }, 500);
                                 }
                                 scheduleNextPoll();
                             }

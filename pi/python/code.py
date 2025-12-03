@@ -35,6 +35,7 @@ current_peripheral = None  # Reference to track the current peripheral object
 led_peripheral = None
 WEB_MESSAGE = "Loading Bluetooth..."
 QR_DATA_FILE = '/var/www/html/qr_data.json'
+DETAIL_URL = None  # Store detail URL to show QR code again after service ends
 
 print(f"[BLE Config] Service UUID: {SERVICE_UUID}")
 print(f"[BLE Config] Char UUID: {CHAR_UUID}")
@@ -94,6 +95,21 @@ class LEDController:
                     if led_service.set_color_exclusive(color):
                         led_state = f'{color}_on'
                         print(f"[LED] {color.upper()} SOLID ON (device running)")
+
+                        # If GREEN LED and order info provided, show status page
+                        if color == "green" and "duration" in data:
+                            order_status = {
+                                'status': 'RUNNING',
+                                'start_time': int(time.time()),
+                                'duration_seconds': data.get('duration', 30),
+                                'timestamp': int(time.time() * 1000)
+                            }
+                            try:
+                                with open(QR_DATA_FILE, 'w') as f:
+                                    json.dump(order_status, f)
+                                print(f"[Status] Order running for {data.get('duration')}s")
+                            except Exception as e:
+                                print(f"Error writing order status: {e}")
                     else:
                         print(f"Unknown color: {color}")
 
@@ -112,6 +128,11 @@ class LEDController:
                     led_service.turn_off_all()
                     led_state = 'off'
                     print(f"[LED] ALL OFF (device stopped)")
+
+                    # Show QR code again for next user
+                    if DETAIL_URL:
+                        publish_qr_code(DETAIL_URL)
+                        print("[Status] Returning to QR code for next user")
 
                 elif command == "CONNECT":
                     print("New Device Connected")
@@ -144,12 +165,13 @@ def generate_deep_link(adapter_address, service_uuid, char_uuid, ble_key, device
     The URL points to the FastAPI backend's /detail endpoint which will handle the payment/product details.
     User scans QR -> Android app opens URL via deep link -> Extracts BLE params -> Connects to device
     """
-    global WEB_MESSAGE
+    global WEB_MESSAGE, DETAIL_URL
 
     # Build cloud API URL with all BLE connection parameters
     detail_url = f"{API_BASE_URL}/detail?machineId={device_id or MACHINE_ID}&mac={adapter_address}&service={service_uuid}&char={char_uuid}&key={ble_key}"
 
     WEB_MESSAGE = detail_url
+    DETAIL_URL = detail_url  # Store for later use
     print(f"Generated Detail URL: {detail_url}")
     publish_qr_code(detail_url)
 
