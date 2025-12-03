@@ -2,6 +2,7 @@ package com.example.remoteled;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -12,6 +13,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 
 import com.example.remoteled.ble.BLEConnectionManager;
+import com.example.remoteled.models.Device;
 import com.example.remoteled.models.Order;
 import com.example.remoteled.models.requests.CreateOrderRequest;
 import com.example.remoteled.models.requests.LEDControlRequest;
@@ -183,7 +185,7 @@ public class PaymentActivity extends AppCompatActivity {
             return;
         }
 
-        // Start YELLOW LED (solid ON during payment)
+        // Start YELLOW LED (blinking during payment processing)
         startYellowLED();
 
         boolean skipLed = false;  // Enable LED triggering
@@ -272,8 +274,53 @@ public class PaymentActivity extends AppCompatActivity {
     }
 
     private void stopYellowLED() {
+        Log.d(TAG, "Stopping all LEDs and querying device status...");
+
+        // Step 1: Stop all LEDs
         BLEConnectionManager.getInstance().sendOffCommand();
-        Log.d(TAG, "YELLOW LED OFF (payment completed)");
+
+        // Step 2: Wait 0.5s for GPIO to react, then query device status
+        new Handler().postDelayed(() -> {
+            queryDeviceStatusAndControlLED();
+        }, 500);
+    }
+
+    private void queryDeviceStatusAndControlLED() {
+        Log.d(TAG, "Querying device status from backend...");
+
+        RetrofitClient.getInstance()
+                .getApiService()
+                .getDevice(deviceId)
+                .enqueue(new Callback<Device>() {
+                    @Override
+                    public void onResponse(Call<Device> call, Response<Device> response) {
+                        if (response.isSuccessful() && response.body() != null) {
+                            Device device = response.body();
+                            String status = device.getStatus();
+                            Log.d(TAG, "Device status from backend: " + status);
+
+                            // Control GREEN LED based on status
+                            if (status != null && (status.equalsIgnoreCase("ON") ||
+                                                   status.equalsIgnoreCase("RUNNING"))) {
+                                // Turn on GREEN LED
+                                new Handler().postDelayed(() -> {
+                                    BLEConnectionManager.getInstance().sendOnCommand("green");
+                                    Log.d(TAG, "GREEN LED ON (device is running)");
+                                }, 500);
+                            } else {
+                                // Status is OFF/IDLE - keep LEDs off
+                                Log.d(TAG, "Device status is " + status + " - LEDs remain off");
+                            }
+                        } else {
+                            Log.e(TAG, "Failed to get device status: " + response.code());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<Device> call, Throwable t) {
+                        Log.e(TAG, "Network error querying device status: " + t.getMessage(), t);
+                    }
+                });
     }
 
     private void showError(String message) {
