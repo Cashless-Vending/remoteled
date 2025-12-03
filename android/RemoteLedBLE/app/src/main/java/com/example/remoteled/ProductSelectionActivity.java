@@ -191,8 +191,7 @@ public class ProductSelectionActivity extends AppCompatActivity {
     }
 
     private void navigateToPayment(Service selectedService) {
-        // Stop RED LED before navigating
-        stopRedLED();
+        // Keep RED LED ON to indicate BLE connection is active
 
         Intent intent = new Intent(this, PaymentActivity.class);
 
