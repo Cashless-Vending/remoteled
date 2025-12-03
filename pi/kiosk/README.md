@@ -51,6 +51,7 @@ sudo systemctl start kiosk-server
    - `{'qr_url': 'http://...', 'status': 'QR'}` - Shows QR code
    - `{'status': 'CONNECTED'}` - Shows "Connected" message
    - `{'status': 'RUNNING', 'duration_seconds': 30}` - Shows countdown timer
+   - The state file defaults to `/var/www/html/state.json` (override with `KIOSK_STATE_FILE`).
 
 2. **React polls state.json every second** and updates UI
 

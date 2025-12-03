@@ -163,6 +163,7 @@
     </form>
     <script>
         let lastTimestamp = 0;
+        let lastQrUrl = null;
         let countdownInterval = null;
 
         function updateQRCode() {
@@ -220,8 +221,14 @@
                             }
 
                             if (message.startsWith("remoteled://") || message.startsWith("http://") || message.startsWith("https://")) {
+                                // New QR payload - cache it and render
+                                lastQrUrl = message;
                                 heading.innerHTML = "Scan QR Code";
                                 new QRCode(qr_box, message);
+                            } else if (lastQrUrl) {
+                                // Ignore status-only messages (e.g., "CONNECTED") and keep showing the last QR
+                                heading.innerHTML = "Scan QR Code";
+                                new QRCode(qr_box, lastQrUrl);
                             } else {
                                 heading.innerHTML = message;
                             }

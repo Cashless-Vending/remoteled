@@ -31,43 +31,64 @@ trigger = threading.Event()
 current_peripheral = None
 led_peripheral = None
 WEB_MESSAGE = "Loading Bluetooth..."
-QR_DATA_FILE = '/var/www/html/qr_data.json'
+STATE_FILE = os.getenv('KIOSK_STATE_FILE', '/var/www/html/state.json')
+QR_DATA_FILE = '/var/www/html/qr_data.json'  # Legacy file used by old static kiosk
 DETAIL_URL = None  # Store detail URL to show QR code again after service ends
 
 
-def publish_qr_code(deep_link):
-    """Write QR data to file for web page to read"""
-    global WEB_MESSAGE
-    WEB_MESSAGE = deep_link
-    # Use current timestamp in milliseconds
-    data = {'message': deep_link, 'timestamp': int(time.time() * 1000)}
-    
+def _write_json_atomic(path, data):
+    """Write JSON to a file atomically and ensure world-readable permissions."""
     try:
-        # Ensure directory exists
-        qr_dir = os.path.dirname(QR_DATA_FILE)
-        if qr_dir and not os.path.exists(qr_dir):
-            os.makedirs(qr_dir, exist_ok=True)
-        
-        # Write to temp file first, then rename (atomic write)
-        temp_file = QR_DATA_FILE + '.tmp'
+        target_dir = os.path.dirname(path)
+        if target_dir and not os.path.exists(target_dir):
+            os.makedirs(target_dir, exist_ok=True)
+
+        temp_file = path + '.tmp'
         with open(temp_file, 'w') as f:
             json.dump(data, f)
-        
-        # Move temp file to actual file (atomic)
-        os.replace(temp_file, QR_DATA_FILE)
-        
-        # Make sure file is readable by nginx
-        os.chmod(QR_DATA_FILE, 0o666)
-        
-        display_link = deep_link[:60] + "..." if len(deep_link) > 60 else deep_link
-        print(f"[QR] ✅ Published: {display_link}")
-        
+        os.replace(temp_file, path)
+        os.chmod(path, 0o666)
     except PermissionError as e:
-        print(f"[QR] ❌ Permission denied writing to {QR_DATA_FILE}")
-        print(f"[QR] ❌ Run: sudo chmod 666 {QR_DATA_FILE}")
-        print(f"[QR] ❌ Error: {e}")
+        print(f"[STATE] ❌ Permission denied writing to {path}: {e}")
     except Exception as e:
-        print(f"[QR] ❌ Error writing file: {e}")
+        print(f"[STATE] ❌ Error writing {path}: {e}")
+
+
+def update_kiosk_state(status, qr_url=None, message=None, duration_seconds=None, started_at=None, extra=None):
+    """Publish kiosk state.json so the React kiosk can render the correct view."""
+    payload = {
+        'status': status,
+        'timestamp': int(time.time() * 1000)
+    }
+
+    if qr_url:
+        payload['qr_url'] = qr_url
+    if message:
+        payload['message'] = message
+    if duration_seconds is not None:
+        payload['duration_seconds'] = duration_seconds
+    if started_at is not None:
+        payload['started_at'] = started_at
+    if extra:
+        payload.update(extra)
+
+    _write_json_atomic(STATE_FILE, payload)
+
+
+def publish_qr_code(deep_link):
+    """Write QR data to both legacy kiosk file and new React kiosk state.json."""
+    global WEB_MESSAGE
+    WEB_MESSAGE = deep_link
+    data = {'message': deep_link, 'timestamp': int(time.time() * 1000)}
+
+    # Legacy support for the old static kiosk
+    _write_json_atomic(QR_DATA_FILE, data)
+
+    # New React kiosk state
+    update_kiosk_state(status='QR', qr_url=deep_link, message='Scan QR Code')
+
+    display_link = deep_link[:60] + "..." if len(deep_link) > 60 else deep_link
+    print(f"[QR] ✅ Published: {display_link}")
 
 
 def init_led_service():
@@ -115,8 +136,9 @@ class LEDController:
 
     @classmethod
     def on_connect(cls, ble_device):
-        # Don't overwrite QR code URL - just log the connection
         print(f"[BLE] ✅ Device connected: {ble_device}")
+        # Inform kiosk that a scan/connection occurred
+        update_kiosk_state(status='SCANNED', qr_url=DETAIL_URL, message='Scan detected, connecting...')
 
     @classmethod
     def on_disconnect(cls, adapter_address, device_address):
@@ -156,6 +178,13 @@ class LEDController:
                 if led_service.set_color_exclusive(color):
                     led_state = f'{color}_on'
                     print(f"[LED] ✅ {color.upper()} SOLID ON")
+                    update_kiosk_state(
+                        status='RUNNING',
+                        qr_url=DETAIL_URL,
+                        message='Service Active',
+                        duration_seconds=data.get("duration_seconds") or data.get("duration"),
+                        started_at=data.get("started_at") or int(time.time() * 1000)
+                    )
                 else:
                     print(f"[LED] ❌ Unknown color: {color}")
 
@@ -166,6 +195,7 @@ class LEDController:
                 if led_service.blink(color, times=times, interval=interval):
                     led_state = f'{color}_blinking'
                     print(f"[LED] ✅ {color.upper()} BLINKING ({times}x)")
+                    update_kiosk_state(status='SCANNED', qr_url=DETAIL_URL, message='Processing...')
                 else:
                     print(f"[LED] ❌ Unknown color: {color}")
 
@@ -182,6 +212,7 @@ class LEDController:
 
             elif command == "CONNECT":
                 print("[BLE] ✅ CONNECT command received")
+                update_kiosk_state(status='SCANNED', qr_url=DETAIL_URL, message='Scan detected, connecting...')
             else:
                 print(f"[BLE] ❓ Unknown command: {command}")
 

@@ -1,58 +1,87 @@
-import React, { useState, useEffect } from 'react';
-import QRCode from 'react-qr-code';
-import './App.css';
+import React, { useEffect, useState } from 'react'
+import QRCode from 'react-qr-code'
+import './App.css'
+
+const POLL_INTERVAL_MS = 1000
+
+const defaultMessages = {
+  LOADING: 'Loading status...',
+  QR: 'Scan QR Code',
+  SCANNED: 'Scan detected, connecting...',
+  CONNECTED: 'Connected! Waiting for BLE to start service...',
+  RUNNING: 'Service Active',
+  IDLE: 'Waiting for BLE update...',
+  ERROR: 'Unable to load kiosk state'
+}
+
+const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+}
+
+const computeRemainingSeconds = (data) => {
+  if (!data || !data.duration_seconds) return null
+  const startedAt = data.started_at ? new Date(data.started_at).getTime() : Date.now()
+  const elapsed = Math.max(Math.floor((Date.now() - startedAt) / 1000), 0)
+  return Math.max(data.duration_seconds - elapsed, 0)
+}
 
 function App() {
-  const [qrUrl, setQrUrl] = useState('');
-  const [status, setStatus] = useState('IDLE');
-  const [countdown, setCountdown] = useState(0);
-  const [message, setMessage] = useState('Loading...');
+  const [uiState, setUiState] = useState({
+    status: 'LOADING',
+    qrUrl: '',
+    message: defaultMessages.LOADING,
+    remaining: null,
+    error: ''
+  })
 
   useEffect(() => {
-    // Poll state.json every second
-    const interval = setInterval(() => {
-      fetch('/state.json?t=' + Date.now())
-        .then(res => res.json())
-        .then(data => {
-          if (data.qr_url) {
-            setQrUrl(data.qr_url);
-            setStatus('QR');
-            setMessage('Scan QR Code');
-          } else if (data.status === 'CONNECTED') {
-            setStatus('CONNECTED');
-            setMessage('Connected!');
-          } else if (data.status === 'RUNNING' && data.duration_seconds) {
-            setStatus('RUNNING');
-            setCountdown(data.duration_seconds);
-          }
+    let isMounted = true
+
+    const pollState = async () => {
+      try {
+        const res = await fetch('/state.json?t=' + Date.now())
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`)
+        }
+
+        const data = await res.json()
+        const normalizedStatus = (data.status || (data.qr_url ? 'QR' : 'IDLE')).toUpperCase()
+        const remainingSeconds = computeRemainingSeconds(data)
+        const message = data.message || defaultMessages[normalizedStatus] || defaultMessages.IDLE
+
+        if (!isMounted) return
+
+        setUiState({
+          status: normalizedStatus,
+          qrUrl: data.qr_url || '',
+          message,
+          remaining: remainingSeconds,
+          error: ''
         })
-        .catch(err => console.log('Error fetching state:', err));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Countdown timer
-  useEffect(() => {
-    if (status === 'RUNNING' && countdown > 0) {
-      const timer = setTimeout(() => {
-        setCountdown(prev => {
-          const next = prev - 1;
-          if (next <= 0) {
-            setStatus('QR'); // Go back to QR when done
-          }
-          return next;
-        });
-      }, 1000);
-      return () => clearTimeout(timer);
+      } catch (err) {
+        if (!isMounted) return
+        setUiState((prev) => ({
+          ...prev,
+          status: 'ERROR',
+          message: defaultMessages.ERROR,
+          error: err?.message || 'Failed to fetch state.json',
+          remaining: null
+        }))
+      }
     }
-  }, [status, countdown]);
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  };
+    pollState()
+    const intervalId = setInterval(pollState, POLL_INTERVAL_MS)
+
+    return () => {
+      isMounted = false
+      clearInterval(intervalId)
+    }
+  }, [])
+
+  const { status, qrUrl, message, remaining, error } = uiState
 
   return (
     <div className="App">
@@ -70,21 +99,38 @@ function App() {
           </div>
         )}
 
-        {status === 'CONNECTED' && (
+        {(status === 'SCANNED' || status === 'CONNECTED') && (
           <div className="status-text">
-            <p>Please wait...</p>
+            <p>BLE reported a scan. Waiting for service...</p>
           </div>
         )}
 
         {status === 'RUNNING' && (
           <div className="timer-container">
-            <div className="countdown">{formatTime(countdown)}</div>
-            <p className="status-text">Service Active</p>
+            {typeof remaining === 'number' ? (
+              <div className="countdown">{formatTime(remaining)}</div>
+            ) : (
+              <p className="status-text">Service Active</p>
+            )}
+            <p className="status-text">BLE will update the state when finished.</p>
+          </div>
+        )}
+
+        {status === 'ERROR' && (
+          <div className="status-text error">
+            <p>{error}</p>
+            <p>Waiting for next BLE update...</p>
+          </div>
+        )}
+
+        {status === 'IDLE' && (
+          <div className="status-text">
+            <p>Waiting for BLE update...</p>
           </div>
         )}
       </div>
     </div>
-  );
+  )
 }
 
-export default App;
+export default App

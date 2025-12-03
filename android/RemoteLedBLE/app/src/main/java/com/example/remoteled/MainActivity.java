@@ -60,6 +60,7 @@ public class MainActivity extends AppCompatActivity {
     String bleKey;
     String scannedDeviceId; // optional from QR deep link
     FloatingActionButton disconnectButton;
+    private boolean connectionStarted = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -217,6 +218,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     private void initializeGattConnection() {
+        if (connectionStarted) {
+            Log.d(TAG, "Ignoring duplicate initializeGattConnection call");
+            return;
+        }
+
         // Check if the app was opened via a deep link
         Intent intent = getIntent();
         if (intent != null && intent.getAction() != null && intent.getAction().equals(Intent.ACTION_VIEW)) {
@@ -273,7 +279,26 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void connectToDevice(String macAddress, UUID serviceUUID, UUID characteristicUUID) {
-        BluetoothDevice device = bluetoothAdapter.getRemoteDevice(macAddress);
+        if (connectionStarted) {
+            Log.d(TAG, "BLE connection already started, skipping");
+            return;
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            updateConnectionStatus("Bluetooth permission required");
+            return;
+        }
+
+        BluetoothDevice device;
+        try {
+            device = bluetoothAdapter.getRemoteDevice(macAddress);
+        } catch (IllegalArgumentException | SecurityException e) {
+            Log.e(TAG, "Invalid or unauthorized MAC address: " + macAddress, e);
+            Toast.makeText(this,"Invalid device address",Toast.LENGTH_SHORT).show();
+            updateConnectionStatus("Invalid device address");
+            return;
+        }
+
         if (device == null) {
             Log.e(TAG, "Device not found. Unable to connect.");
             Toast.makeText(this,"Device Not Found!",Toast.LENGTH_SHORT).show();
@@ -283,21 +308,12 @@ public class MainActivity extends AppCompatActivity {
 
         updateConnectionStatus("Connecting to device...");
 
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-        bluetoothGatt = device.connectGatt(this, false, new BluetoothGattCallback() {
+        try {
+            bluetoothGatt = device.connectGatt(this, false, new BluetoothGattCallback() {
             @Override
             public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
                 Log.d(TAG,"BLE State Changed"+newState);
-                if (newState == BluetoothGatt.STATE_CONNECTED) {
+                if (newState == BluetoothGatt.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
                     Log.i(TAG, "Connected to GATT server.");
                     updateConnectionStatus("Connected to device");
                     if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
@@ -315,7 +331,15 @@ public class MainActivity extends AppCompatActivity {
                     Log.i(TAG, "Disconnected from GATT server.");
                     updateConnectionStatus("Disconnected from device");
                     bluetoothGatt.close();
+                    connectionStarted = false;
                     MainActivity.this.finishAndRemoveTask();
+                } else if (status != BluetoothGatt.GATT_SUCCESS) {
+                    Log.e(TAG, "GATT connection failed with status " + status);
+                    updateConnectionStatus("Connection failed");
+                    connectionStarted = false;
+                    try {
+                        bluetoothGatt.close();
+                    } catch (Exception ignored) {}
                 }
             }
 
@@ -380,6 +404,17 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+        } catch (SecurityException e) {
+            Log.e(TAG, "connectGatt failed due to missing permission", e);
+            updateConnectionStatus("Bluetooth permission required");
+            connectionStarted = false;
+        } catch (Exception e) {
+            Log.e(TAG, "connectGatt failed", e);
+            updateConnectionStatus("Connection failed");
+            connectionStarted = false;
+        }
+
+        connectionStarted = bluetoothGatt != null;
     }
 
     private void sendCommand(String command) {
@@ -444,6 +479,7 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             bluetoothGatt.close();
+            connectionStarted = false;
             bluetoothGatt = null;
         }
     }
