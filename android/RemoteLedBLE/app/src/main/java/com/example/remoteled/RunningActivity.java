@@ -260,9 +260,8 @@ public class RunningActivity extends AppCompatActivity {
     }
     
     private void startGreenLED() {
-        // Send GREEN ON with 30-second duration for Pi status page
-        BLEConnectionManager.getInstance().sendOnCommand("green", 30);
-        Log.d(TAG, "Started GREEN LED with 30s duration");
+        BLEConnectionManager.getInstance().sendOnCommand("green");
+        Log.d(TAG, "Started GREEN LED");
     }
 
     private void stopGreenLED() {

@@ -34,9 +34,7 @@ trigger = threading.Event()
 current_peripheral = None  # Reference to track the current peripheral object
 led_peripheral = None
 WEB_MESSAGE = "Loading Bluetooth..."
-# Path to state.json for React kiosk (relative to home directory)
-HOME_DIR = os.path.expanduser('~')
-STATE_FILE = os.path.join(HOME_DIR, 'remoteled/pi/kiosk/build/state.json')
+QR_DATA_FILE = '/var/www/html/qr_data.json'
 DETAIL_URL = None  # Store detail URL to show QR code again after service ends
 
 print(f"[BLE Config] Service UUID: {SERVICE_UUID}")
@@ -47,28 +45,17 @@ print(f"[Machine Config] Device ID: {DEVICE_ID}")
 print(f"[Machine Config] API Base URL: {API_BASE_URL}")
 
 
-# Write state to file for React kiosk to read
-def publish_qr_code(qr_url):
+# Write QR data to file for web page to read
+def publish_qr_code(deep_link):
     global WEB_MESSAGE
-    WEB_MESSAGE = qr_url
-    data = {'qr_url': qr_url, 'status': 'QR', 'timestamp': int(time.time() * 1000)}
+    WEB_MESSAGE = deep_link
+    data = {'message': deep_link, 'timestamp': int(time.time() * 1000)}
     try:
-        with open(STATE_FILE, 'w') as f:
+        with open(QR_DATA_FILE, 'w') as f:
             json.dump(data, f)
-        print(f"QR code published: {qr_url}")
+        print(f"Deep link written to file: {deep_link}")
     except Exception as e:
-        print(f"Error writing state file: {e}")
-
-def publish_status(status, duration_seconds=0):
-    data = {'status': status, 'timestamp': int(time.time() * 1000)}
-    if duration_seconds > 0:
-        data['duration_seconds'] = duration_seconds
-    try:
-        with open(STATE_FILE, 'w') as f:
-            json.dump(data, f)
-        print(f"Status published: {status}")
-    except Exception as e:
-        print(f"Error writing state file: {e}")
+        print(f"Error writing QR data file: {e}")
 
 
 class LEDController:
@@ -77,7 +64,7 @@ class LEDController:
     @classmethod
     def on_connect(cls, ble_device):
         global WEB_MESSAGE
-        publish_status("CONNECTED")
+        publish_qr_code("CONNECTED!")
         print("Connected to BLE device: ", ble_device)
 
     @classmethod
@@ -108,12 +95,6 @@ class LEDController:
                     if led_service.set_color_exclusive(color):
                         led_state = f'{color}_on'
                         print(f"[LED] {color.upper()} SOLID ON (device running)")
-
-                        # If GREEN LED and duration provided, show timer
-                        if color == "green" and "duration" in data:
-                            duration = data.get('duration', 30)
-                            publish_status("RUNNING", duration)
-                            print(f"[Status] Service running for {duration}s")
                     else:
                         print(f"Unknown color: {color}")
 
@@ -141,7 +122,7 @@ class LEDController:
 
                 elif command == "CONNECT":
                     print("New Device Connected")
-                    publish_status("CONNECTED")
+                    publish_qr_code("CONNECTED!")
                 else:
                     print("Unknown command received")
 
