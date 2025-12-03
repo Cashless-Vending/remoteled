@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+# Don't use set -e as we handle errors manually
 
 echo "================================================"
 echo "RemoteLED Pi Startup (BLE + Kiosk)"
@@ -54,7 +54,7 @@ echo ""
 
 # Step 3: Verify macOS backend is reachable
 echo -e "${YELLOW}[3/4] Checking macOS backend...${NC}"
-if curl -s -m 3 "http://${MACOS_SERVER_IP}:${BACKEND_PORT}/health" > /dev/null; then
+if curl -s -m 3 "http://${MACOS_SERVER_IP}:${BACKEND_PORT}/health" > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Backend API reachable at http://${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
 else
     echo -e "${RED}✗ Cannot reach backend at http://${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
@@ -65,45 +65,68 @@ echo ""
 
 # Step 4: Start BLE Peripheral
 echo -e "${YELLOW}[4/4] Starting BLE Peripheral...${NC}"
-cd "$REPO_ROOT/pi/python"
 
 # Kill any existing BLE process
-sudo pkill -f "python.*code.py" || true
+echo "  Stopping any existing BLE processes..."
+sudo pkill -f "python.*code.py" 2>/dev/null || true
 sleep 1
 
-# Start BLE in background with proper environment
+# Set up environment
 export API_BASE_URL="http://${MACOS_SERVER_IP}:${BACKEND_PORT}"
 export DEVICE_ID=$(cat "$DEVICE_ID_FILE" | tr -d ' \r\n')
-UV_PATH=$(which uv)
-nohup sudo -E bash -c "cd $REPO_ROOT && DEVICE_ID=$DEVICE_ID API_BASE_URL=$API_BASE_URL $UV_PATH run --extra pi python pi/python/code.py" > /tmp/remoteled_ble.log 2>&1 &
-BLE_PID=$!
-echo "Waiting for BLE to initialize..."
-sleep 4
 
-# Check if BLE started
-if ps -p $BLE_PID > /dev/null; then
+# Clear old log
+sudo rm -f /tmp/remoteled_ble.log
+sudo touch /tmp/remoteled_ble.log
+sudo chmod 666 /tmp/remoteled_ble.log
+
+# Start BLE in background
+echo "  Starting BLE service..."
+cd "$REPO_ROOT"
+
+# Use a simpler approach: run Python directly with sudo
+sudo -E DEVICE_ID="$DEVICE_ID" API_BASE_URL="$API_BASE_URL" \
+    nohup python3 pi/python/code.py > /tmp/remoteled_ble.log 2>&1 &
+
+echo "  Waiting for BLE to initialize (5 seconds)..."
+sleep 5
+
+# Check if the Python process is running (look for the actual process)
+if pgrep -f "python.*code.py" > /dev/null; then
+    BLE_PID=$(pgrep -f "python.*code.py" | head -1)
     echo -e "${GREEN}✓ BLE Peripheral started (PID: $BLE_PID)${NC}"
     echo -e "  Device ID: $DEVICE_ID"
-    echo -e "  Backend URL: http://${MACOS_SERVER_IP}:${BACKEND_PORT}"
-    echo -e "  Logs: sudo tail -f /tmp/remoteled_ble.log"
+    echo -e "  Backend URL: $API_BASE_URL"
 else
     echo -e "${RED}✗ BLE Peripheral failed to start${NC}"
-    echo "Check logs: sudo tail -f /tmp/remoteled_ble.log"
+    echo ""
+    echo "Last 20 lines of log:"
+    echo "----------------------------------------"
+    tail -20 /tmp/remoteled_ble.log
+    echo "----------------------------------------"
+    echo ""
+    echo "Full log: sudo cat /tmp/remoteled_ble.log"
     exit 1
 fi
 echo ""
 
 # Wait for QR code generation
 echo -e "${YELLOW}Waiting for QR code generation...${NC}"
-sleep 3
+sleep 2
 
 # Check if QR data is ready
 if [ -f "/var/www/html/qr_data.json" ]; then
-    QR_URL=$(cat /var/www/html/qr_data.json | grep -o 'http[^"]*' | head -1)
-    echo -e "${GREEN}✓ QR Code ready!${NC}"
-    echo -e "  Detail URL: $QR_URL"
+    QR_CONTENT=$(cat /var/www/html/qr_data.json 2>/dev/null)
+    if echo "$QR_CONTENT" | grep -q "http"; then
+        QR_URL=$(echo "$QR_CONTENT" | grep -o 'http[^"]*' | head -1)
+        echo -e "${GREEN}✓ QR Code ready!${NC}"
+        echo -e "  Detail URL: $QR_URL"
+    else
+        echo -e "${YELLOW}⚠ QR data exists but no URL yet${NC}"
+        echo "  Content: $QR_CONTENT"
+    fi
 else
-    echo -e "${YELLOW}⚠ QR data not yet generated, check BLE logs${NC}"
+    echo -e "${YELLOW}⚠ QR data file not found${NC}"
 fi
 echo ""
 
@@ -114,8 +137,8 @@ echo "================================================"
 echo ""
 echo "Services:"
 echo "  • nginx: running"
-echo "  • BLE Peripheral: running"
-echo "  • Backend API: http://${MACOS_SERVER_IP}:${BACKEND_PORT} (macOS)"
+echo "  • BLE Peripheral: running (PID: $BLE_PID)"
+echo "  • Backend API: $API_BASE_URL (macOS)"
 echo "  • Kiosk page: http://localhost"
 echo ""
 echo "Logs:"
@@ -127,7 +150,7 @@ echo ""
 echo "To stop BLE service:"
 echo "  sudo pkill -f 'python.*code.py'"
 echo ""
-echo "Press Ctrl+C to monitor BLE logs (service will keep running)..."
+echo "Monitoring BLE logs (Ctrl+C to stop, service keeps running)..."
 echo ""
 
 # Follow BLE logs
