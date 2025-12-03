@@ -89,31 +89,39 @@ class LEDController:
             color = data.get("color", "green").lower()
             request_key = data.get("bleKey", "")
 
+            print(f"\n[BLE] ▶ Received command: {command} color={color}")
+            
+            # Log if a blink is currently running (will be stopped by new command)
+            if led_service.is_blinking():
+                print(f"[BLE] ⚠️  Interrupting ongoing blink operation...")
+
             if request_key == BLE_KEY:
                 if command == "ON":
                     # Solid ON - device is running
+                    # Note: set_color_exclusive automatically stops any ongoing blink
                     if led_service.set_color_exclusive(color):
                         led_state = f'{color}_on'
-                        print(f"[LED] {color.upper()} SOLID ON (device running)")
+                        print(f"[LED] ✅ {color.upper()} SOLID ON (device running)")
                     else:
-                        print(f"Unknown color: {color}")
+                        print(f"[LED] ❌ Unknown color: {color}")
 
                 elif command == "BLINK":
-                    # Blink mode - payment processing
+                    # Blink mode - payment processing (non-blocking)
+                    # Note: blink() automatically stops any previous blink
                     times = data.get("times", 5)
                     interval = data.get("interval", 0.5)
                     if led_service.blink(color, times=times, interval=interval):
                         led_state = f'{color}_blinking'
-                        print(f"[LED] {color.upper()} BLINKING (processing)")
+                        print(f"[LED] ✅ {color.upper()} BLINKING started (non-blocking)")
                     else:
-                        print(f"Unknown color: {color}")
+                        print(f"[LED] ❌ Unknown color: {color}")
 
                 elif command == "OFF":
                     # Turn off all LEDs - device stopped
-                    # Accept any color value (including "all")
+                    # Note: turn_off_all automatically stops any ongoing blink
                     led_service.turn_off_all()
                     led_state = 'off'
-                    print(f"[LED] ALL OFF (device stopped)")
+                    print(f"[LED] ✅ ALL OFF (device stopped)")
 
                     # Return to QR code for next user
                     if DETAIL_URL:
@@ -121,10 +129,10 @@ class LEDController:
                         print("[Status] Returning to QR code")
 
                 elif command == "CONNECT":
-                    print("New Device Connected")
+                    print("[BLE] ✅ New Device Connected")
                     publish_qr_code("CONNECTED!")
                 else:
-                    print("Unknown command received")
+                    print(f"[BLE] ❓ Unknown command received: {command}")
 
             # Update BLE characteristic value
             if cls.tx_obj:
