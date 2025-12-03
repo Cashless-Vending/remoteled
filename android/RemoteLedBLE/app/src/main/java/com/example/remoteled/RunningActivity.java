@@ -159,12 +159,12 @@ public class RunningActivity extends AppCompatActivity {
     
     private void startCountdown() {
         if (serviceType.equals("TRIGGER")) {
-            // TRIGGER has no duration - quick dispense
-            Log.d(TAG, "TRIGGER service - quick 2 second countdown then complete");
-            countdownTime.setText("00:02");
+            // TRIGGER has no duration - dispense cycle
+            Log.d(TAG, "TRIGGER service - 15 second countdown then complete");
+            countdownTime.setText("00:15");
             
-            // Short countdown for TRIGGER (2 seconds for visual feedback)
-            countDownTimer = new CountDownTimer(2000, 1000) {
+            // Countdown for TRIGGER (15 seconds for dispense cycle)
+            countDownTimer = new CountDownTimer(15000, 1000) {
                 @Override
                 public void onTick(long millisUntilFinished) {
                     long seconds = (millisUntilFinished / 1000) + 1;
