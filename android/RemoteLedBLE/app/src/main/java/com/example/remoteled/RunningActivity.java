@@ -56,7 +56,7 @@ public class RunningActivity extends AppCompatActivity {
 
     // Status polling
     private Handler statusPollHandler = new Handler();
-    private static final int POLL_INTERVAL_MS = 3000;  // 3 seconds
+    private static final int POLL_INTERVAL_MS = 1500;  // 1.5 seconds
     private boolean isPolling = false;
     private boolean isGreenLEDOn = false;
     
