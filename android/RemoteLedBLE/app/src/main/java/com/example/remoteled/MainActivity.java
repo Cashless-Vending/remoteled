@@ -377,9 +377,9 @@ public class MainActivity extends AppCompatActivity {
                         // Initialize singleton BLE manager
                         BLEConnectionManager.getInstance().initialize(bluetoothGatt, characteristic, bleKey);
 
-                        // Stop all LEDs when BLE connection succeeds
-                        BLEConnectionManager.getInstance().sendOffCommand();
-                        Log.d(TAG, "BLE connected successfully - stopping all LEDs");
+                        // Turn RED LED solid ON when BLE connection succeeds
+                        BLEConnectionManager.getInstance().sendOnCommand("red");
+                        Log.d(TAG, "BLE connected successfully - RED LED solid ON");
 
                         enableControlButtons(true); // handshake complete
                         // If we came from QR and have a deviceId, navigate into app flow
