@@ -28,12 +28,25 @@ echo ""
 # =============================================================================
 # STEP 0: CLEANUP - Do this FIRST before anything else
 # =============================================================================
-echo -e "${YELLOW}[0/6] Preparing environment (cleanup)...${NC}"
+echo -e "${YELLOW}[0/7] Preparing environment (cleanup)...${NC}"
 
 # Kill any existing BLE processes FIRST
 echo "  → Stopping any existing BLE processes..."
 sudo pkill -f "python.*code.py" 2>/dev/null || true
 sleep 1
+
+# Enable BlueZ experimental features (required for BLE peripheral/GATT server)
+echo "  → Enabling BlueZ experimental features..."
+sudo mkdir -p /etc/systemd/system/bluetooth.service.d/
+echo -e '[Service]\nExecStart=\nExecStart=/usr/libexec/bluetooth/bluetoothd --experimental' | sudo tee /etc/systemd/system/bluetooth.service.d/experimental.conf > /dev/null
+sudo systemctl daemon-reload
+sudo systemctl restart bluetooth
+sleep 2
+if ps aux | grep -q "[b]luetooth.*--experimental"; then
+    echo -e "${GREEN}✓ BlueZ experimental features enabled${NC}"
+else
+    echo -e "${YELLOW}⚠ BlueZ experimental features may not be enabled${NC}"
+fi
 
 # Create directories
 echo "  → Creating required directories..."
@@ -70,7 +83,7 @@ echo ""
 # =============================================================================
 # STEP 1: Check uv installation
 # =============================================================================
-echo -e "${YELLOW}[1/6] Checking uv installation...${NC}"
+echo -e "${YELLOW}[1/7] Checking uv installation...${NC}"
 if ! command -v uv &> /dev/null; then
     echo -e "${RED}✗ uv is not installed${NC}"
     echo ""
@@ -86,7 +99,7 @@ echo ""
 # =============================================================================
 # STEP 2: Sync dependencies
 # =============================================================================
-echo -e "${YELLOW}[2/6] Syncing dependencies (uv sync --extra pi)...${NC}"
+echo -e "${YELLOW}[2/7] Syncing dependencies (uv sync --extra pi)...${NC}"
 cd "$REPO_ROOT"
 if uv sync --extra pi 2>&1 | tail -5; then
     echo -e "${GREEN}✓ Dependencies synced${NC}"
@@ -100,7 +113,7 @@ echo ""
 # =============================================================================
 # STEP 3: Check device ID
 # =============================================================================
-echo -e "${YELLOW}[3/6] Checking device ID...${NC}"
+echo -e "${YELLOW}[3/7] Checking device ID...${NC}"
 if [ ! -f "$DEVICE_ID_FILE" ]; then
     echo "Device ID file not found. Creating with default ID..."
     echo -n "$DEFAULT_DEVICE_ID" | sudo tee "$DEVICE_ID_FILE" > /dev/null
@@ -115,7 +128,7 @@ echo ""
 # =============================================================================
 # STEP 4: Check/start nginx
 # =============================================================================
-echo -e "${YELLOW}[4/6] Checking nginx...${NC}"
+echo -e "${YELLOW}[4/7] Checking nginx...${NC}"
 # Restart nginx to clear any caches
 if systemctl is-active --quiet nginx 2>/dev/null; then
     echo "  Restarting nginx to clear cache..."
@@ -137,7 +150,7 @@ echo ""
 # =============================================================================
 # STEP 5: Check backend connectivity
 # =============================================================================
-echo -e "${YELLOW}[5/6] Checking macOS backend...${NC}"
+echo -e "${YELLOW}[5/7] Checking macOS backend...${NC}"
 if curl -s -m 3 "http://${MACOS_SERVER_IP}:${BACKEND_PORT}/health" > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Backend API reachable at http://${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
 else
@@ -150,7 +163,7 @@ echo ""
 # =============================================================================
 # STEP 6: Start BLE Peripheral
 # =============================================================================
-echo -e "${YELLOW}[6/6] Starting BLE Peripheral...${NC}"
+echo -e "${YELLOW}[6/7] Starting BLE Peripheral...${NC}"
 
 # Set up environment
 export API_BASE_URL="http://${MACOS_SERVER_IP}:${BACKEND_PORT}"
@@ -182,6 +195,18 @@ else
     tail -30 /tmp/remoteled_ble.log
     echo "----------------------------------------"
     exit 1
+fi
+echo ""
+
+# =============================================================================
+# STEP 7: Verify BLE Advertisement
+# =============================================================================
+echo -e "${YELLOW}[7/7] Verifying BLE advertisement...${NC}"
+sleep 3  # Give BLE peripheral time to start advertising
+if timeout 5 sudo hcitool lescan 2>&1 | grep -q "Remote LED\|2C:CF"; then
+    echo -e "${GREEN}✓ BLE peripheral is advertising${NC}"
+else
+    echo -e "${YELLOW}⚠ BLE advertisement not detected (may still work)${NC}"
 fi
 echo ""
 
@@ -225,7 +250,8 @@ echo "================================================"
 echo ""
 echo "Services:"
 echo "  • nginx: $(systemctl is-active nginx 2>/dev/null || echo 'not available')"
-echo "  • BLE: running (PID: $BLE_PID)"
+echo "  • Bluetooth: $(ps aux | grep -q '[b]luetooth.*--experimental' && echo 'experimental enabled' || echo 'standard mode')"
+echo "  • BLE Peripheral: running (PID: $BLE_PID)"
 echo "  • Backend: $API_BASE_URL"
 echo ""
 echo "QR Data File: $QR_DATA_FILE"
