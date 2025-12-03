@@ -12,6 +12,14 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# Turn on RED LED to indicate preparation is starting
+echo -e "${YELLOW}Turning on RED LED (preparation starting)...${NC}"
+sudo /home/alusi/remoteled/.venv/bin/python3 -c "
+from pi.python.led_service import LEDService
+led = LEDService()
+led.set_color_exclusive('red')
+" 2>/dev/null || echo "  (LED control not available)"
+
 # Configuration
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEVICE_ID_FILE="/usr/local/remoteled/device_id"
@@ -243,6 +251,13 @@ echo ""
 echo "================================================"
 if [ "$QR_READY" = true ]; then
     echo -e "${GREEN}✓ Pi services started successfully!${NC}"
+    # Turn off all LEDs to indicate preparation is complete
+    echo -e "${GREEN}Turning off all LEDs (preparation complete)${NC}"
+    sudo /home/alusi/remoteled/.venv/bin/python3 -c "
+from pi.python.led_service import LEDService
+led = LEDService()
+led.turn_off_all()
+" 2>/dev/null || echo "  (LED control not available)"
 else
     echo -e "${YELLOW}⚠ Pi started but QR code may have issues${NC}"
 fi
