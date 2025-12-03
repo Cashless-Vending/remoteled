@@ -5,7 +5,14 @@ Provides a single, consistent interface for controlling GPIO LEDs across all imp
 """
 import time
 import threading
-import RPi.GPIO as GPIO
+
+# Try to import RPi.GPIO, fail gracefully if not available
+try:
+    import RPi.GPIO as GPIO
+    GPIO_AVAILABLE = True
+except ImportError:
+    GPIO_AVAILABLE = False
+    print("[LEDService] WARNING: RPi.GPIO not available - running in mock mode")
 
 
 class LEDService:
@@ -30,20 +37,29 @@ class LEDService:
 
     def __init__(self):
         """Initialize GPIO pins and threading controls"""
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)
-
-        # Setup all LED pins as outputs, initially LOW
-        for color, pin in self.PINS.items():
-            GPIO.setup(pin, GPIO.OUT)
-            GPIO.output(pin, GPIO.LOW)
-
         # Threading controls for non-blocking blink
         self._blink_thread = None
         self._stop_blink_flag = threading.Event()
         self._blink_lock = threading.Lock()
+        self._gpio_available = GPIO_AVAILABLE
 
-        print(f"[LEDService] Initialized GPIO pins: {self.PINS}")
+        if not GPIO_AVAILABLE:
+            print("[LEDService] Running in mock mode (no GPIO)")
+            return
+
+        try:
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setwarnings(False)
+
+            # Setup all LED pins as outputs, initially LOW
+            for color, pin in self.PINS.items():
+                GPIO.setup(pin, GPIO.OUT)
+                GPIO.output(pin, GPIO.LOW)
+
+            print(f"[LEDService] ✅ Initialized GPIO pins: {self.PINS}")
+        except Exception as e:
+            print(f"[LEDService] ⚠️ GPIO setup failed: {e}")
+            self._gpio_available = False
 
     def stop_blink(self):
         """
@@ -85,6 +101,10 @@ class LEDService:
 
         pin = self.PINS[color]
 
+        if not self._gpio_available:
+            print(f"[LEDService] [MOCK] {color.upper()} LED {state.upper()}")
+            return True
+
         if state == "on":
             GPIO.output(pin, GPIO.HIGH)
             print(f"[LEDService] {color.upper()} LED (GPIO {pin}) turned ON")
@@ -101,6 +121,10 @@ class LEDService:
         """Turn off all LEDs and stop any blinking"""
         # Stop any ongoing blink first
         self.stop_blink()
+
+        if not self._gpio_available:
+            print("[LEDService] [MOCK] All LEDs OFF")
+            return
 
         for color, pin in self.PINS.items():
             GPIO.output(pin, GPIO.LOW)
@@ -120,20 +144,24 @@ class LEDService:
             # Check if we should stop
             if self._stop_blink_flag.is_set():
                 print(f"[LEDService] Blink interrupted at iteration {i}/{times}")
-                GPIO.output(pin, GPIO.LOW)
+                if self._gpio_available:
+                    GPIO.output(pin, GPIO.LOW)
                 return
 
-            GPIO.output(pin, GPIO.HIGH)
+            if self._gpio_available:
+                GPIO.output(pin, GPIO.HIGH)
             
             # Use short sleep intervals to check stop flag more frequently
             for _ in range(int(interval * 20)):  # Check every 50ms
                 if self._stop_blink_flag.is_set():
-                    GPIO.output(pin, GPIO.LOW)
+                    if self._gpio_available:
+                        GPIO.output(pin, GPIO.LOW)
                     print(f"[LEDService] Blink interrupted during ON phase")
                     return
                 time.sleep(0.05)
 
-            GPIO.output(pin, GPIO.LOW)
+            if self._gpio_available:
+                GPIO.output(pin, GPIO.LOW)
 
             # Check stop flag during OFF phase too
             for _ in range(int(interval * 20)):
@@ -206,7 +234,15 @@ class LEDService:
         self.stop_blink()
 
         pin = self.PINS[color]
-        print(f"[LEDService] {color.upper()} LED (GPIO {pin}) blinking {times} times (sync)")
+        print(f"[LEDService] {color.upper()} LED blinking {times} times (sync)")
+
+        if not self._gpio_available:
+            # In mock mode, just sleep
+            for i in range(times):
+                if self._stop_blink_flag.is_set():
+                    return True
+                time.sleep(interval * 2)
+            return True
 
         for i in range(times):
             if self._stop_blink_flag.is_set():
@@ -239,12 +275,17 @@ class LEDService:
         # Stop any ongoing blink first
         self.stop_blink()
 
+        pin = self.PINS[color]
+
+        if not self._gpio_available:
+            print(f"[LEDService] [MOCK] {color.upper()} LED ON (exclusive)")
+            return True
+
         # Turn off all LEDs first
-        for c, pin in self.PINS.items():
-            GPIO.output(pin, GPIO.LOW)
+        for c, p in self.PINS.items():
+            GPIO.output(p, GPIO.LOW)
 
         # Turn on the requested LED
-        pin = self.PINS[color]
         GPIO.output(pin, GPIO.HIGH)
         print(f"[LEDService] {color.upper()} LED (GPIO {pin}) turned ON (exclusive)")
 
@@ -254,8 +295,11 @@ class LEDService:
         """Clean up GPIO resources"""
         self.stop_blink()
         self.turn_off_all()
-        GPIO.cleanup()
-        print("[LEDService] GPIO cleaned up")
+        if self._gpio_available:
+            GPIO.cleanup()
+            print("[LEDService] GPIO cleaned up")
+        else:
+            print("[LEDService] [MOCK] Cleanup complete")
 
     def get_pin(self, color: str) -> int:
         """
