@@ -11,10 +11,22 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# Source uv environment if available
+if [ -f "$HOME/.local/bin/env" ]; then
+    source "$HOME/.local/bin/env"
+fi
+
 # Configuration
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_PORT=9999
 MACOS_IP=$(ipconfig getifaddr en0 || hostname -I | awk '{print $1}')
+
+# Find uv path
+UV_PATH=$(which uv 2>/dev/null || echo "$HOME/.local/bin/uv")
+if [ ! -x "$UV_PATH" ]; then
+    echo -e "${RED}✗ uv not found. Install with: curl -LsSf https://astral.sh/uv/install.sh | sh${NC}"
+    exit 1
+fi
 
 echo -e "${YELLOW}Repository root: ${REPO_ROOT}${NC}"
 echo -e "${YELLOW}macOS IP: ${MACOS_IP}${NC}"
@@ -62,7 +74,7 @@ cd "$REPO_ROOT"
 
 if [ ! -d ".venv" ]; then
     echo "Installing dependencies with uv..."
-    uv sync
+    "$UV_PATH" sync
 else
     echo -e "${GREEN}✓ Dependencies already installed${NC}"
 fi
@@ -78,7 +90,15 @@ sleep 1
 # Start backend in background
 export API_BASE_URL="http://${MACOS_IP}:${BACKEND_PORT}"
 cd "$REPO_ROOT/backend"
-nohup uv run --no-project uvicorn app.main:app --host 0.0.0.0 --port ${BACKEND_PORT} > /tmp/remoteled_backend.log 2>&1 &
+
+# Use the venv from repo root
+VENV_PYTHON="$REPO_ROOT/.venv/bin/python"
+if [ ! -x "$VENV_PYTHON" ]; then
+    echo -e "${RED}✗ Virtual environment not found at $REPO_ROOT/.venv${NC}"
+    exit 1
+fi
+
+nohup "$VENV_PYTHON" -m uvicorn app.main:app --host 0.0.0.0 --port ${BACKEND_PORT} > /tmp/remoteled_backend.log 2>&1 &
 BACKEND_PID=$!
 echo "Waiting for backend to start..."
 sleep 6

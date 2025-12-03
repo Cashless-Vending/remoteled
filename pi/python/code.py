@@ -137,16 +137,16 @@ class LEDController:
     @classmethod
     def on_connect(cls, ble_device):
         print(f"[BLE] ✅ Device connected: {ble_device}")
-        # Inform kiosk that a scan/connection occurred
-        update_kiosk_state(status='SCANNED', qr_url=DETAIL_URL, message='Scan detected, connecting...')
+        # Inform kiosk that device is connected - stay on this until service ends
+        update_kiosk_state(status='CONNECTED', qr_url=DETAIL_URL, message='Device Connected')
 
     @classmethod
     def on_disconnect(cls, adapter_address, device_address):
         print(f"[BLE] Device disconnected: {device_address}")
-        # Restore QR code after disconnect (for next user)
-        if DETAIL_URL:
-            publish_qr_code(DETAIL_URL)
-            print("[BLE] Restored QR code for next user")
+        # Don't restore QR code here - wait for OFF command from app
+        # The app will send OFF command when service is complete
+        # This keeps the kiosk showing "CONNECTED" during service
+        print("[BLE] BLE disconnected (kiosk stays on current screen until OFF command)")
 
     @classmethod
     def on_read(cls, options):
@@ -200,19 +200,21 @@ class LEDController:
                     print(f"[LED] ❌ Unknown color: {color}")
 
             elif command == "OFF":
-                # Turn off all LEDs
+                # Turn off all LEDs and set back to RED (idle state)
                 led_service.turn_off_all()
-                led_state = 'off'
-                print(f"[LED] ✅ ALL OFF")
+                time.sleep(0.1)  # Brief pause before setting RED
+                led_service.set_color_exclusive("red")
+                led_state = 'red_idle'
+                print(f"[LED] ✅ Service ended → RED (idle)")
 
                 # Restore QR code for next user
                 if DETAIL_URL:
                     publish_qr_code(DETAIL_URL)
-                    print("[Status] QR code restored")
+                    print("[Status] QR code restored for next user")
 
             elif command == "CONNECT":
                 print("[BLE] ✅ CONNECT command received")
-                update_kiosk_state(status='SCANNED', qr_url=DETAIL_URL, message='Scan detected, connecting...')
+                update_kiosk_state(status='CONNECTED', qr_url=DETAIL_URL, message='Device Connected')
             else:
                 print(f"[BLE] ❓ Unknown command: {command}")
 
@@ -300,6 +302,11 @@ def main(adapter_address, device_id=None):
     # Step 2: Initialize LED service (with error handling)
     print("\n[2/5] Initializing LED service...")
     init_led_service()
+    
+    # Set initial LED state: RED (idle/ready)
+    if led_service:
+        led_service.set_color_exclusive("red")
+        print("[LED] 🔴 Initial state: RED (ready/idle)")
 
     # Step 3: Get device ID
     print("\n[3/5] Loading configuration...")

@@ -16,7 +16,7 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // API Base URL (points to local Mac backend)
-        buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.99:9999\"")
+        buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.158:9999\"")
     }
 
     buildTypes {

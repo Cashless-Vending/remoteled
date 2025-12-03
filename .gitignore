@@ -29,4 +29,4 @@ android/RemoteLedBLE/app/build/
 Thumbs.db
 
 # Firebase
-firebase-adminsdk-*.json
+firebase-adminsdk-*.jsonbackend/.env

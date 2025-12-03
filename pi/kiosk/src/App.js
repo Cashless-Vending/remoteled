@@ -8,7 +8,7 @@ const defaultMessages = {
   LOADING: 'Loading status...',
   QR: 'Scan QR Code',
   SCANNED: 'Scan detected, connecting...',
-  CONNECTED: 'Connected! Waiting for BLE to start service...',
+  CONNECTED: 'Device Connected',
   RUNNING: 'Service Active',
   IDLE: 'Waiting for BLE update...',
   ERROR: 'Unable to load kiosk state'
@@ -99,9 +99,17 @@ function App() {
           </div>
         )}
 
-        {(status === 'SCANNED' || status === 'CONNECTED') && (
+        {status === 'SCANNED' && (
           <div className="status-text">
-            <p>BLE reported a scan. Waiting for service...</p>
+            <p>Scan detected, connecting...</p>
+          </div>
+        )}
+
+        {status === 'CONNECTED' && (
+          <div className="connected-container">
+            <div className="connected-icon">✓</div>
+            <p className="connected-text">Processing Payment...</p>
+            <p className="connected-subtext">Please wait while we complete your transaction</p>
           </div>
         )}
 

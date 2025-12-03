@@ -140,26 +140,9 @@ public class RunningActivity extends AppCompatActivity {
     }
     
     private void setLEDStatus() {
-        int ledDrawable;
-        String ledText;
-        
-        switch (serviceType) {
-            case "TRIGGER":
-                ledDrawable = R.drawable.led_circle_blue;
-                ledText = "🔵 Blue Blink - TRIGGER Product";
-                break;
-            case "FIXED":
-                ledDrawable = R.drawable.led_circle_green;
-                ledText = "🟢 Green Solid - FIXED Product Running";
-                break;
-            case "VARIABLE":
-                ledDrawable = R.drawable.led_circle_amber;
-                ledText = "🟠 Amber Solid - VARIABLE Product Running";
-                break;
-            default:
-                ledDrawable = R.drawable.led_circle_green;
-                ledText = "Device Running";
-        }
+        // All service types use GREEN LED when running (payment was successful)
+        int ledDrawable = R.drawable.led_circle_green;
+        String ledText = "🟢 Service Running";
         
         runningLed.setBackgroundResource(ledDrawable);
         runningLedText.setText(ledText);
@@ -176,10 +159,33 @@ public class RunningActivity extends AppCompatActivity {
     
     private void startCountdown() {
         if (serviceType.equals("TRIGGER")) {
-            // TRIGGER has no duration, complete immediately
+            // TRIGGER has no duration - quick dispense
+            Log.d(TAG, "TRIGGER service - quick 2 second countdown then complete");
             countdownTime.setText("00:02");
-            // Send DONE telemetry - polling will detect status change
-            sendTelemetry("DONE");
+            
+            // Short countdown for TRIGGER (2 seconds for visual feedback)
+            countDownTimer = new CountDownTimer(2000, 1000) {
+                @Override
+                public void onTick(long millisUntilFinished) {
+                    long seconds = (millisUntilFinished / 1000) + 1;
+                    countdownTime.setText(String.format(Locale.getDefault(), "00:%02d", seconds));
+                }
+                
+                @Override
+                public void onFinish() {
+                    countdownTime.setText("00:00");
+                    Log.d(TAG, "TRIGGER countdown finished, sending DONE telemetry");
+                    sendTelemetry("DONE");
+                    
+                    // For TRIGGER, turn off LED and navigate after short delay
+                    new Handler().postDelayed(() -> {
+                        stopGreenLED();
+                        isGreenLEDOn = false;
+                        stopStatusPolling();
+                        navigateToSuccess();
+                    }, 1000);
+                }
+            }.start();
             return;
         }
 
@@ -202,6 +208,14 @@ public class RunningActivity extends AppCompatActivity {
                 // Send DONE telemetry - server will update status to DONE
                 // Polling will detect the status change and turn off GREEN LED
                 sendTelemetry("DONE");
+                
+                // Navigate to success screen after short delay
+                new Handler().postDelayed(() -> {
+                    stopGreenLED();
+                    isGreenLEDOn = false;
+                    stopStatusPolling();
+                    navigateToSuccess();
+                }, 1500);
             }
         }.start();
     }
@@ -255,6 +269,25 @@ public class RunningActivity extends AppCompatActivity {
         Intent intent = new Intent(this, MainActivity.class);
         // Clear all activities above MainActivity
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
+        startActivity(intent);
+        finish();
+    }
+    
+    private void navigateToSuccess() {
+        if (countDownTimer != null) {
+            countDownTimer.cancel();
+        }
+
+        Log.d(TAG, "Service completed successfully, navigating to success screen");
+
+        Intent intent = new Intent(this, SuccessActivity.class);
+        intent.putExtra("DEVICE_LABEL", deviceLabel);
+        intent.putExtra("ORDER_ID", orderId);
+        intent.putExtra("SERVICE_TYPE", serviceType);
+        intent.putExtra("AUTHORIZED_MINUTES", authorizedMinutes);
+        intent.putExtra("AMOUNT_CENTS", amountCents);
+        intent.putExtra("STARTED_AT", startTime.getTime());
+        
         startActivity(intent);
         finish();
     }
@@ -317,13 +350,14 @@ public class RunningActivity extends AppCompatActivity {
                             }
                             // Turn GREEN LED OFF when status is DONE
                             else if ("DONE".equals(status)) {
-                                Log.d(TAG, "Order status is DONE - stopping device");
+                                Log.d(TAG, "Order status is DONE - service complete");
                                 stopStatusPolling();
                                 if (isGreenLEDOn) {
                                     stopGreenLED();
                                     isGreenLEDOn = false;
                                 }
-                                // Stay on this screen - don't navigate back
+                                // Navigate to success screen
+                                navigateToSuccess();
                             }
                             // For other statuses (PAID, CREATED, etc.), keep polling
                             else {
