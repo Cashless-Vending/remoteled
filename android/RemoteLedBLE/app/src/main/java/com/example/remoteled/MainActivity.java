@@ -63,6 +63,14 @@ public class MainActivity extends AppCompatActivity {
     private boolean connectionStarted = false;
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        Log.d(TAG, "onNewIntent called - ignoring duplicate deep link");
+        // With singleTask mode, this prevents re-processing the same or duplicate intents
+        // The BLE connection is already established via the singleton BLEConnectionManager
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
@@ -284,8 +292,12 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        // Set flag immediately to prevent race conditions
+        connectionStarted = true;
+
         if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
             updateConnectionStatus("Bluetooth permission required");
+            connectionStarted = false;
             return;
         }
 
@@ -296,6 +308,7 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG, "Invalid or unauthorized MAC address: " + macAddress, e);
             Toast.makeText(this,"Invalid device address",Toast.LENGTH_SHORT).show();
             updateConnectionStatus("Invalid device address");
+            connectionStarted = false;
             return;
         }
 
@@ -303,6 +316,7 @@ public class MainActivity extends AppCompatActivity {
             Log.e(TAG, "Device not found. Unable to connect.");
             Toast.makeText(this,"Device Not Found!",Toast.LENGTH_SHORT).show();
             updateConnectionStatus("Device not found");
+            connectionStarted = false;
             return;
         }
 
@@ -414,7 +428,10 @@ public class MainActivity extends AppCompatActivity {
             connectionStarted = false;
         }
 
-        connectionStarted = bluetoothGatt != null;
+        // connectionStarted is already set to true at the start of this method
+        if (bluetoothGatt == null) {
+            connectionStarted = false;
+        }
     }
 
     private void sendCommand(String command) {
