@@ -28,6 +28,7 @@ import android.view.View;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.example.remoteled.ble.BLEConnectionManager;
 import com.example.remoteled.databinding.ActivityMainBinding;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
@@ -59,6 +60,15 @@ public class MainActivity extends AppCompatActivity {
     String bleKey;
     String scannedDeviceId; // optional from QR deep link
     FloatingActionButton disconnectButton;
+    private boolean connectionStarted = false;
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        Log.d(TAG, "onNewIntent called - ignoring duplicate deep link");
+        // With singleTask mode, this prevents re-processing the same or duplicate intents
+        // The BLE connection is already established via the singleton BLEConnectionManager
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -216,6 +226,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
     private void initializeGattConnection() {
+        if (connectionStarted) {
+            Log.d(TAG, "Ignoring duplicate initializeGattConnection call");
+            return;
+        }
+
         // Check if the app was opened via a deep link
         Intent intent = getIntent();
         if (intent != null && intent.getAction() != null && intent.getAction().equals(Intent.ACTION_VIEW)) {
@@ -272,31 +287,47 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void connectToDevice(String macAddress, UUID serviceUUID, UUID characteristicUUID) {
-        BluetoothDevice device = bluetoothAdapter.getRemoteDevice(macAddress);
+        if (connectionStarted) {
+            Log.d(TAG, "BLE connection already started, skipping");
+            return;
+        }
+
+        // Set flag immediately to prevent race conditions
+        connectionStarted = true;
+
+        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            updateConnectionStatus("Bluetooth permission required");
+            connectionStarted = false;
+            return;
+        }
+
+        BluetoothDevice device;
+        try {
+            device = bluetoothAdapter.getRemoteDevice(macAddress);
+        } catch (IllegalArgumentException | SecurityException e) {
+            Log.e(TAG, "Invalid or unauthorized MAC address: " + macAddress, e);
+            Toast.makeText(this,"Invalid device address",Toast.LENGTH_SHORT).show();
+            updateConnectionStatus("Invalid device address");
+            connectionStarted = false;
+            return;
+        }
+
         if (device == null) {
             Log.e(TAG, "Device not found. Unable to connect.");
             Toast.makeText(this,"Device Not Found!",Toast.LENGTH_SHORT).show();
             updateConnectionStatus("Device not found");
+            connectionStarted = false;
             return;
         }
 
         updateConnectionStatus("Connecting to device...");
 
-        if (ActivityCompat.checkSelfPermission(this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-            // TODO: Consider calling
-            //    ActivityCompat#requestPermissions
-            // here to request the missing permissions, and then overriding
-            //   public void onRequestPermissionsResult(int requestCode, String[] permissions,
-            //                                          int[] grantResults)
-            // to handle the case where the user grants the permission. See the documentation
-            // for ActivityCompat#requestPermissions for more details.
-            return;
-        }
-        bluetoothGatt = device.connectGatt(this, false, new BluetoothGattCallback() {
+        try {
+            bluetoothGatt = device.connectGatt(this, false, new BluetoothGattCallback() {
             @Override
             public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
                 Log.d(TAG,"BLE State Changed"+newState);
-                if (newState == BluetoothGatt.STATE_CONNECTED) {
+                if (newState == BluetoothGatt.STATE_CONNECTED && status == BluetoothGatt.GATT_SUCCESS) {
                     Log.i(TAG, "Connected to GATT server.");
                     updateConnectionStatus("Connected to device");
                     if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
@@ -314,7 +345,15 @@ public class MainActivity extends AppCompatActivity {
                     Log.i(TAG, "Disconnected from GATT server.");
                     updateConnectionStatus("Disconnected from device");
                     bluetoothGatt.close();
+                    connectionStarted = false;
                     MainActivity.this.finishAndRemoveTask();
+                } else if (status != BluetoothGatt.GATT_SUCCESS) {
+                    Log.e(TAG, "GATT connection failed with status " + status);
+                    updateConnectionStatus("Connection failed");
+                    connectionStarted = false;
+                    try {
+                        bluetoothGatt.close();
+                    } catch (Exception ignored) {}
                 }
             }
 
@@ -325,7 +364,19 @@ public class MainActivity extends AppCompatActivity {
                     if (service != null) {
                         characteristic = service.getCharacteristic(characteristicUUID);
                         Log.i(TAG, "Characteristic found.");
+
+                        // Log characteristic properties for debugging
+                        int properties = characteristic.getProperties();
+                        Log.d(TAG, "Characteristic properties: " + properties);
+                        Log.d(TAG, "  PROPERTY_READ: " + ((properties & BluetoothGattCharacteristic.PROPERTY_READ) != 0));
+                        Log.d(TAG, "  PROPERTY_WRITE: " + ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0));
+                        Log.d(TAG, "  PROPERTY_WRITE_NO_RESPONSE: " + ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0));
+
                         updateConnectionStatus("Characteristic found");
+
+                        // Initialize singleton BLE manager
+                        BLEConnectionManager.getInstance().initialize(bluetoothGatt, characteristic, bleKey);
+
                         enableControlButtons(true); // handshake complete
                         // If we came from QR and have a deviceId, navigate into app flow
                         if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
@@ -333,7 +384,9 @@ public class MainActivity extends AppCompatActivity {
                                 Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
                                 i.putExtra("DEVICE_ID", scannedDeviceId);
                                 startActivity(i);
-                                finish();
+                                // Don't finish - keep MainActivity alive to maintain GATT connection
+                                // The BLEConnectionManager holds references to bluetoothGatt which lives in MainActivity
+                                moveTaskToBack(true); // Move to background instead of finishing
                             });
                         }
                         if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
@@ -374,7 +427,34 @@ public class MainActivity extends AppCompatActivity {
                     Log.i(TAG, "Characteristic read successfully: " + Arrays.toString(data));
                 }
             }
+
+            @Override
+            public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    Log.d(TAG, "Characteristic write successful");
+                    // Notify BLEConnectionManager that write completed
+                    BLEConnectionManager.getInstance().onWriteComplete();
+                } else {
+                    Log.e(TAG, "Characteristic write failed with status: " + status);
+                    // Still notify to process next command
+                    BLEConnectionManager.getInstance().onWriteComplete();
+                }
+            }
         });
+        } catch (SecurityException e) {
+            Log.e(TAG, "connectGatt failed due to missing permission", e);
+            updateConnectionStatus("Bluetooth permission required");
+            connectionStarted = false;
+        } catch (Exception e) {
+            Log.e(TAG, "connectGatt failed", e);
+            updateConnectionStatus("Connection failed");
+            connectionStarted = false;
+        }
+
+        // connectionStarted is already set to true at the start of this method
+        if (bluetoothGatt == null) {
+            connectionStarted = false;
+        }
     }
 
     private void sendCommand(String command) {
@@ -439,6 +519,7 @@ public class MainActivity extends AppCompatActivity {
                 return;
             }
             bluetoothGatt.close();
+            connectionStarted = false;
             bluetoothGatt = null;
         }
     }

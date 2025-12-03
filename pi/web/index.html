@@ -156,9 +156,15 @@
     <form>
         <h3 id="heading">Loading...</h3>
         <div id="qrcode" class="container"></div>
+        <div id="status" class="container" style="display:none; flex-direction:column; align-items:center;">
+            <h1 id="countdown" style="font-size:72px; margin:20px 0;">00:30</h1>
+            <p id="status-text" style="font-size:20px; margin:10px 0;">Device Running</p>
+        </div>
     </form>
     <script>
         let lastTimestamp = 0;
+        let lastQrUrl = null;
+        let countdownInterval = null;
 
         function updateQRCode() {
             fetch('/qr_data.json')
@@ -167,16 +173,65 @@
                     // Only update if the data has changed
                     if (data.timestamp > lastTimestamp) {
                         lastTimestamp = data.timestamp;
-                        const message = data.message;
                         const qr_box = document.getElementById("qrcode");
+                        const status_box = document.getElementById("status");
                         const heading = document.getElementById("heading");
-                        qr_box.innerHTML = "";
 
-                        if (message.startsWith("remoteled://") || message.startsWith("http://") || message.startsWith("https://")) {
-                            heading.innerHTML = "Scan QR Code";
-                            new QRCode(qr_box, message);
-                        } else {
-                            heading.innerHTML = message;
+                        // Check if this is order status data
+                        if (data.status && data.status === "RUNNING") {
+                            // Show status page with countdown
+                            qr_box.style.display = "none";
+                            status_box.style.display = "flex";
+                            heading.innerHTML = "Service Active";
+
+                            // Clear existing countdown
+                            if (countdownInterval) {
+                                clearInterval(countdownInterval);
+                            }
+
+                            // Start countdown
+                            const startTime = data.start_time;
+                            const duration = data.duration_seconds;
+
+                            countdownInterval = setInterval(() => {
+                                const now = Math.floor(Date.now() / 1000);
+                                const elapsed = now - startTime;
+                                const remaining = Math.max(0, duration - elapsed);
+
+                                const minutes = Math.floor(remaining / 60);
+                                const seconds = remaining % 60;
+                                document.getElementById("countdown").innerHTML =
+                                    String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+
+                                if (remaining === 0) {
+                                    clearInterval(countdownInterval);
+                                    countdownInterval = null;
+                                }
+                            }, 1000);
+                        } else if (data.message) {
+                            // Show QR code or message
+                            const message = data.message;
+                            status_box.style.display = "none";
+                            qr_box.style.display = "flex";
+                            qr_box.innerHTML = "";
+
+                            if (countdownInterval) {
+                                clearInterval(countdownInterval);
+                                countdownInterval = null;
+                            }
+
+                            if (message.startsWith("remoteled://") || message.startsWith("http://") || message.startsWith("https://")) {
+                                // New QR payload - cache it and render
+                                lastQrUrl = message;
+                                heading.innerHTML = "Scan QR Code";
+                                new QRCode(qr_box, message);
+                            } else if (lastQrUrl) {
+                                // Ignore status-only messages (e.g., "CONNECTED") and keep showing the last QR
+                                heading.innerHTML = "Scan QR Code";
+                                new QRCode(qr_box, lastQrUrl);
+                            } else {
+                                heading.innerHTML = message;
+                            }
                         }
                     }
                 })

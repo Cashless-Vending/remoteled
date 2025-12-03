@@ -14,9 +14,11 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.remoteled.adapters.ProductAdapter;
+import com.example.remoteled.ble.BLEConnectionManager;
 import com.example.remoteled.models.Device;
 import com.example.remoteled.models.DeviceWithServices;
 import com.example.remoteled.models.Service;
+import com.example.remoteled.models.requests.LEDControlRequest;
 import com.example.remoteled.network.RetrofitClient;
 
 import java.util.List;
@@ -60,7 +62,10 @@ public class ProductSelectionActivity extends AppCompatActivity {
         initViews();
         setupRecyclerView();
         setupListeners();
-        
+
+        // Start RED LED (solid ON while loading)
+        startRedLED();
+
         // Fetch device and services from API
         fetchDeviceWithServices();
     }
@@ -110,19 +115,21 @@ public class ProductSelectionActivity extends AppCompatActivity {
                 .getDeviceWithServices(deviceId)
                 .enqueue(new Callback<DeviceWithServices>() {
                     @Override
-                    public void onResponse(Call<DeviceWithServices> call, 
+                    public void onResponse(Call<DeviceWithServices> call,
                                          Response<DeviceWithServices> response) {
                         if (response.isSuccessful() && response.body() != null) {
                             DeviceWithServices data = response.body();
                             currentDevice = data.getDevice();
-                            
+
                             Log.d(TAG, "Device loaded: " + currentDevice.getLabel());
                             Log.d(TAG, "Services count: " + data.getServices().size());
-                            
+
                             runOnUiThread(() -> {
                                 displayDeviceInfo(currentDevice);
                                 displayServices(data.getServices());
                                 hideLoading();
+                                // Stop RED LED when device info is loaded
+                                stopRedLED();
                             });
                         } else {
                             Log.e(TAG, "API Error: " + response.code() + " - " + response.message());
@@ -173,9 +180,22 @@ public class ProductSelectionActivity extends AppCompatActivity {
         errorMessage.setText(message);
     }
     
+    private void startRedLED() {
+        BLEConnectionManager.getInstance().sendOnCommand("red");
+        Log.d(TAG, "RED LED ON (connecting to BLE)");
+    }
+
+    private void stopRedLED() {
+        BLEConnectionManager.getInstance().sendOffCommand();
+        Log.d(TAG, "RED LED OFF (connected)");
+    }
+
     private void navigateToPayment(Service selectedService) {
+        // Stop RED LED before navigating
+        stopRedLED();
+
         Intent intent = new Intent(this, PaymentActivity.class);
-        
+
         // Pass device and service info
         intent.putExtra("DEVICE_ID", currentDevice.getId());
         intent.putExtra("DEVICE_LABEL", currentDevice.getLabel());
@@ -183,9 +203,9 @@ public class ProductSelectionActivity extends AppCompatActivity {
         intent.putExtra("SERVICE_ID", selectedService.getId());
         intent.putExtra("SERVICE_TYPE", selectedService.getType());
         intent.putExtra("SERVICE_PRICE_CENTS", selectedService.getPriceCents());
-        intent.putExtra("SERVICE_FIXED_MINUTES", selectedService.getFixedMinutes() != null ? 
+        intent.putExtra("SERVICE_FIXED_MINUTES", selectedService.getFixedMinutes() != null ?
             selectedService.getFixedMinutes() : 0);
-        
+
         startActivity(intent);
     }
 }

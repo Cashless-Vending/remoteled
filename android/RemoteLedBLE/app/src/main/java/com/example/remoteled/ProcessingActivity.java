@@ -66,7 +66,7 @@ public class ProcessingActivity extends AppCompatActivity {
         serviceType = intent.getStringExtra("SERVICE_TYPE");
         authorizedMinutes = intent.getIntExtra("AUTHORIZED_MINUTES", 0);
         amountCents = intent.getIntExtra("AMOUNT_CENTS", 0);
-        
+
         Log.d(TAG, "Processing activation for order: " + orderId);
         Log.d(TAG, "Service type: " + serviceType + ", Duration: " + authorizedMinutes + " min");
     }
@@ -216,7 +216,7 @@ public class ProcessingActivity extends AppCompatActivity {
     
     private void navigateToRunning() {
         Intent intent = new Intent(this, RunningActivity.class);
-        
+
         // Pass data forward
         intent.putExtra("DEVICE_ID", deviceId);
         intent.putExtra("DEVICE_LABEL", deviceLabel);
@@ -224,14 +224,14 @@ public class ProcessingActivity extends AppCompatActivity {
         intent.putExtra("SERVICE_TYPE", serviceType);
         intent.putExtra("AUTHORIZED_MINUTES", authorizedMinutes);
         intent.putExtra("AMOUNT_CENTS", amountCents);
-        
+
         // Pass authorization if needed for BLE
         if (authorization != null) {
             intent.putExtra("AUTHORIZATION_ID", authorization.getId());
             intent.putExtra("AUTHORIZATION_PAYLOAD", new Gson().toJson(authorization.getPayload()));
             intent.putExtra("AUTHORIZATION_SIGNATURE", authorization.getSignatureHex());
         }
-        
+
         startActivity(intent);
         finish();
     }
