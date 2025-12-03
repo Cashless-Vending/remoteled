@@ -79,12 +79,15 @@ def create_telemetry_log(
                 (new_status, telemetry.order_id, device_id)
             )
 
+            # COMMIT THE TRANSACTION
+            cursor.connection.commit()
+
             # LED control is handled by Android app via BLE
             # Backend just logs the status change
             if telemetry.event == "STARTED":
-                print(f"[Telemetry] Device STARTED (LED controlled by app)")
+                print(f"[Telemetry] Device STARTED → Status updated to {new_status} (LED controlled by app)")
             elif telemetry.event == "DONE":
-                print(f"[Telemetry] Device DONE (LED controlled by app)")
+                print(f"[Telemetry] Device DONE → Status updated to {new_status} (LED controlled by app)")
 
     return {
         "success": True,

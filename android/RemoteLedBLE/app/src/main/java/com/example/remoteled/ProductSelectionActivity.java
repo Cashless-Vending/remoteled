@@ -14,8 +14,7 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.example.remoteled.adapters.ProductAdapter;
-import com.example.remoteled.ble.BLEManager;
-import com.example.remoteled.ble.BleConfig;
+import com.example.remoteled.ble.BLEConnectionManager;
 import com.example.remoteled.models.Device;
 import com.example.remoteled.models.DeviceWithServices;
 import com.example.remoteled.models.Service;
@@ -45,9 +44,6 @@ public class ProductSelectionActivity extends AppCompatActivity {
     private String deviceId;
     private Device currentDevice;
     private ProductAdapter productAdapter;
-
-    // BLE
-    private BLEManager bleManager;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,10 +63,8 @@ public class ProductSelectionActivity extends AppCompatActivity {
         setupRecyclerView();
         setupListeners();
 
-        // Initialize and connect BLE
-        initBluetoothConnection();
-
         // Fetch device and services from API
+        // RED LED is already ON from MainActivity
         fetchDeviceWithServices();
     }
     
@@ -184,45 +178,14 @@ public class ProductSelectionActivity extends AppCompatActivity {
         errorMessage.setText(message);
     }
     
-    private void initBluetoothConnection() {
-        Log.d(TAG, "Initializing BLE connection...");
-
-        bleManager = new BLEManager(
-            this,
-            BleConfig.MAC_ADDRESS,
-            BleConfig.SERVICE_UUID,
-            BleConfig.CHARACTERISTIC_UUID,
-            BleConfig.BLE_KEY
-        );
-
-        bleManager.connect(new BLEManager.ConnectionCallback() {
-            @Override
-            public void onConnected() {
-                Log.d(TAG, "BLE connected - starting RED LED blink");
-                runOnUiThread(() -> {
-                    // Start RED LED blink to indicate BLE connection/loading
-                    bleManager.sendBlinkCommand(BleConfig.COLOR_RED);
-                });
-            }
-
-            @Override
-            public void onDisconnected() {
-                Log.d(TAG, "BLE disconnected");
-            }
-
-            @Override
-            public void onError(String error) {
-                Log.e(TAG, "BLE connection error: " + error);
-                // Continue without BLE - don't block the user flow
-            }
-        });
+    private void startRedLED() {
+        BLEConnectionManager.getInstance().sendOnCommand("red");
+        Log.d(TAG, "RED LED ON (connecting to BLE)");
     }
 
     private void stopRedLED() {
-        if (bleManager != null && bleManager.isConnected()) {
-            Log.d(TAG, "Stopping RED LED");
-            bleManager.sendOffCommand();
-        }
+        BLEConnectionManager.getInstance().sendOffCommand();
+        Log.d(TAG, "RED LED OFF (connected)");
     }
 
     private void navigateToPayment(Service selectedService) {
@@ -242,15 +205,6 @@ public class ProductSelectionActivity extends AppCompatActivity {
             selectedService.getFixedMinutes() : 0);
 
         startActivity(intent);
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        // Disconnect BLE when activity is destroyed
-        if (bleManager != null) {
-            bleManager.disconnect();
-        }
     }
 }
 

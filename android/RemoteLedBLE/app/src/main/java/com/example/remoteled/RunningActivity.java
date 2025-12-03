@@ -12,8 +12,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.example.remoteled.ble.BLEManager;
-import com.example.remoteled.ble.BleConfig;
+import com.example.remoteled.ble.BLEConnectionManager;
 import com.example.remoteled.models.Order;
 import com.example.remoteled.models.requests.TelemetryRequest;
 import com.example.remoteled.network.RetrofitClient;
@@ -55,13 +54,11 @@ public class RunningActivity extends AppCompatActivity {
     private long remainingTimeMillis;
     private Date startTime;
 
-    // BLE
-    private BLEManager bleManager;
-
     // Status polling
     private Handler statusPollHandler = new Handler();
     private static final int POLL_INTERVAL_MS = 3000;  // 3 seconds
     private boolean isPolling = false;
+    private boolean isGreenLEDOn = false;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -75,9 +72,6 @@ public class RunningActivity extends AppCompatActivity {
         initViews();
         setupListeners();
         displayDetails();
-
-        // Initialize BLE connection
-        initBluetoothConnection();
 
         // Send STARTED telemetry and turn on GREEN LED
         sendTelemetry("STARTED");
@@ -97,9 +91,9 @@ public class RunningActivity extends AppCompatActivity {
         serviceType = intent.getStringExtra("SERVICE_TYPE");
         authorizedMinutes = intent.getIntExtra("AUTHORIZED_MINUTES", 0);
         amountCents = intent.getIntExtra("AMOUNT_CENTS", 0);
-        
+
         startTime = new Date();
-        
+
         Log.d(TAG, "Running screen for order: " + orderId);
         Log.d(TAG, "Duration: " + authorizedMinutes + " minutes");
     }
@@ -184,13 +178,14 @@ public class RunningActivity extends AppCompatActivity {
         if (serviceType.equals("TRIGGER")) {
             // TRIGGER has no duration, complete immediately
             countdownTime.setText("00:02");
+            // Send DONE telemetry - polling will detect status change
             sendTelemetry("DONE");
-            navigateToSuccess();
             return;
         }
-        
-        // Calculate remaining time in milliseconds
-        remainingTimeMillis = authorizedMinutes * 60 * 1000;
+
+        // FOR TESTING: Use 30 seconds instead of actual authorized minutes
+        // TODO: Change back to: remainingTimeMillis = authorizedMinutes * 60 * 1000;
+        remainingTimeMillis = 30 * 1000;  // 30 seconds for testing
         
         countDownTimer = new CountDownTimer(remainingTimeMillis, 1000) {
             @Override
@@ -203,12 +198,10 @@ public class RunningActivity extends AppCompatActivity {
             public void onFinish() {
                 countdownTime.setText("00:00");
                 Log.d(TAG, "Countdown finished, sending DONE telemetry");
-                
-                // Send DONE telemetry
+
+                // Send DONE telemetry - server will update status to DONE
+                // Polling will detect the status change and turn off GREEN LED
                 sendTelemetry("DONE");
-                
-                // Navigate to success screen
-                navigateToSuccess();
             }
         }.start();
     }
@@ -224,13 +217,6 @@ public class RunningActivity extends AppCompatActivity {
     private void sendTelemetry(String event) {
         Log.d(TAG, "Sending telemetry: " + event + " for order: " + orderId);
 
-        // Control GREEN LED based on event
-        if (event.equals("STARTED")) {
-            startGreenLED();
-        } else if (event.equals("DONE")) {
-            stopGreenLED();
-        }
-
         TelemetryRequest request = new TelemetryRequest(event, orderId);
 
         RetrofitClient.getInstance()
@@ -242,6 +228,10 @@ public class RunningActivity extends AppCompatActivity {
                                          Response<Map<String, Object>> response) {
                         if (response.isSuccessful()) {
                             Log.d(TAG, "Telemetry " + event + " sent successfully");
+                            // After STARTED telemetry succeeds, start polling to check when status becomes RUNNING
+                            if (event.equals("STARTED")) {
+                                Log.d(TAG, "STARTED telemetry sent, server should update to RUNNING soon");
+                            }
                         } else {
                             Log.w(TAG, "Telemetry failed: " + response.code());
                         }
@@ -254,67 +244,29 @@ public class RunningActivity extends AppCompatActivity {
                 });
     }
     
-    private void navigateToSuccess() {
+    private void navigateToQRScreen() {
         if (countDownTimer != null) {
             countDownTimer.cancel();
         }
-        
-        Intent intent = new Intent(this, SuccessActivity.class);
-        
-        // Pass data to success screen
-        intent.putExtra("DEVICE_LABEL", deviceLabel);
-        intent.putExtra("ORDER_ID", orderId);
-        intent.putExtra("SERVICE_TYPE", serviceType);
-        intent.putExtra("AUTHORIZED_MINUTES", authorizedMinutes);
-        intent.putExtra("AMOUNT_CENTS", amountCents);
-        intent.putExtra("STARTED_AT", startTime.getTime());
-        
+
+        Log.d(TAG, "Service completed, returning to QR screen for next user");
+
+        // Navigate back to MainActivity (QR scanner)
+        Intent intent = new Intent(this, MainActivity.class);
+        // Clear all activities above MainActivity
+        intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
         startActivity(intent);
         finish();
     }
     
-    private void initBluetoothConnection() {
-        Log.d(TAG, "Initializing BLE connection for device running...");
-
-        bleManager = new BLEManager(
-            this,
-            BleConfig.MAC_ADDRESS,
-            BleConfig.SERVICE_UUID,
-            BleConfig.CHARACTERISTIC_UUID,
-            BleConfig.BLE_KEY
-        );
-
-        bleManager.connect(new BLEManager.ConnectionCallback() {
-            @Override
-            public void onConnected() {
-                Log.d(TAG, "BLE connected for device monitoring");
-            }
-
-            @Override
-            public void onDisconnected() {
-                Log.d(TAG, "BLE disconnected");
-            }
-
-            @Override
-            public void onError(String error) {
-                Log.e(TAG, "BLE connection error: " + error);
-                // Continue without BLE - don't block device monitoring
-            }
-        });
-    }
-
     private void startGreenLED() {
-        if (bleManager != null && bleManager.isConnected()) {
-            Log.d(TAG, "Starting GREEN LED (device running)");
-            bleManager.sendOnCommand(BleConfig.COLOR_GREEN);
-        }
+        BLEConnectionManager.getInstance().sendOnCommand("green");
+        Log.d(TAG, "Started GREEN LED");
     }
 
     private void stopGreenLED() {
-        if (bleManager != null && bleManager.isConnected()) {
-            Log.d(TAG, "Stopping GREEN LED (device done)");
-            bleManager.sendOffCommand();
-        }
+        BLEConnectionManager.getInstance().sendOffCommand();
+        Log.d(TAG, "Stopped GREEN LED");
     }
 
     private void startStatusPolling() {
@@ -350,21 +302,29 @@ public class RunningActivity extends AppCompatActivity {
                         if (response.isSuccessful() && response.body() != null) {
                             Order order = response.body();
                             String status = order.getStatus();
-                            Log.d(TAG, "Order status: " + status);
+                            Log.d(TAG, "Polled order status: " + status);
 
-                            // Check if order is done
-                            if ("DONE".equals(status)) {
-                                Log.d(TAG, "Order status changed to DONE - stopping device");
+                            // Turn GREEN LED ON when status is RUNNING (only once)
+                            if ("RUNNING".equals(status)) {
+                                if (!isGreenLEDOn) {
+                                    startGreenLED();
+                                    isGreenLEDOn = true;
+                                }
+                                scheduleNextPoll();
+                            }
+                            // Turn GREEN LED OFF and navigate when status is DONE
+                            else if ("DONE".equals(status)) {
+                                Log.d(TAG, "Order status is DONE - stopping device");
                                 stopStatusPolling();
-                                stopGreenLED();
-
-                                // Send DONE telemetry if not already sent
-                                sendTelemetry("DONE");
-
-                                // Navigate to success screen
-                                navigateToSuccess();
-                            } else {
-                                // Schedule next poll
+                                if (isGreenLEDOn) {
+                                    stopGreenLED();
+                                    isGreenLEDOn = false;
+                                }
+                                navigateToQRScreen();
+                            }
+                            // For other statuses (PAID, CREATED, etc.), keep polling
+                            else {
+                                Log.d(TAG, "Status not RUNNING yet, will poll again");
                                 scheduleNextPoll();
                             }
                         } else {
@@ -397,11 +357,6 @@ public class RunningActivity extends AppCompatActivity {
         // Cancel countdown timer
         if (countDownTimer != null) {
             countDownTimer.cancel();
-        }
-
-        // Disconnect BLE
-        if (bleManager != null) {
-            bleManager.disconnect();
         }
     }
 }

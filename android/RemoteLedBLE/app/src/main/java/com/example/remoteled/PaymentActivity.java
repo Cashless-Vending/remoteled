@@ -11,8 +11,7 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import com.example.remoteled.ble.BLEManager;
-import com.example.remoteled.ble.BleConfig;
+import com.example.remoteled.ble.BLEConnectionManager;
 import com.example.remoteled.models.Order;
 import com.example.remoteled.models.requests.CreateOrderRequest;
 import com.example.remoteled.models.requests.LEDControlRequest;
@@ -48,9 +47,6 @@ public class PaymentActivity extends AppCompatActivity {
     
     // Created order
     private Order createdOrder;
-
-    // BLE
-    private BLEManager bleManager;
     
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -64,9 +60,6 @@ public class PaymentActivity extends AppCompatActivity {
         initViews();
         setupListeners();
         displaySummary();
-
-        // Initialize BLE connection
-        initBluetoothConnection();
     }
     
     private void getIntentData() {
@@ -78,7 +71,7 @@ public class PaymentActivity extends AppCompatActivity {
         serviceType = intent.getStringExtra("SERVICE_TYPE");
         priceCents = intent.getIntExtra("SERVICE_PRICE_CENTS", 0);
         fixedMinutes = intent.getIntExtra("SERVICE_FIXED_MINUTES", 0);
-        
+
         Log.d(TAG, "Payment screen opened for device: " + deviceLabel);
         Log.d(TAG, "Service: " + serviceType + " - $" + (priceCents / 100.0));
     }
@@ -190,8 +183,8 @@ public class PaymentActivity extends AppCompatActivity {
             return;
         }
 
-        // Start YELLOW LED blink to indicate payment processing
-        startYellowLEDBlink();
+        // Start YELLOW LED (solid ON during payment)
+        startYellowLED();
 
         boolean skipLed = false;  // Enable LED triggering
 
@@ -247,7 +240,7 @@ public class PaymentActivity extends AppCompatActivity {
     
     private void navigateToProcessing() {
         Intent intent = new Intent(this, ProcessingActivity.class);
-        
+
         // Pass all data forward
         intent.putExtra("DEVICE_ID", deviceId);
         intent.putExtra("DEVICE_LABEL", deviceLabel);
@@ -256,7 +249,7 @@ public class PaymentActivity extends AppCompatActivity {
         intent.putExtra("SERVICE_TYPE", serviceType);
         intent.putExtra("AUTHORIZED_MINUTES", createdOrder.getAuthorizedMinutes());
         intent.putExtra("AMOUNT_CENTS", priceCents);
-        
+
         startActivity(intent);
         finish();  // Don't allow back to payment screen
     }
@@ -273,61 +266,18 @@ public class PaymentActivity extends AppCompatActivity {
         payButton.setAlpha(1.0f);
     }
     
-    private void initBluetoothConnection() {
-        Log.d(TAG, "Initializing BLE connection for payment...");
-
-        bleManager = new BLEManager(
-            this,
-            BleConfig.MAC_ADDRESS,
-            BleConfig.SERVICE_UUID,
-            BleConfig.CHARACTERISTIC_UUID,
-            BleConfig.BLE_KEY
-        );
-
-        bleManager.connect(new BLEManager.ConnectionCallback() {
-            @Override
-            public void onConnected() {
-                Log.d(TAG, "BLE connected for payment processing");
-            }
-
-            @Override
-            public void onDisconnected() {
-                Log.d(TAG, "BLE disconnected");
-            }
-
-            @Override
-            public void onError(String error) {
-                Log.e(TAG, "BLE connection error: " + error);
-                // Continue without BLE - don't block payment flow
-            }
-        });
-    }
-
-    private void startYellowLEDBlink() {
-        if (bleManager != null && bleManager.isConnected()) {
-            Log.d(TAG, "Starting YELLOW LED blink for payment processing");
-            bleManager.sendBlinkCommand(BleConfig.COLOR_YELLOW);
-        }
+    private void startYellowLED() {
+        BLEConnectionManager.getInstance().sendBlinkCommand("yellow");
+        Log.d(TAG, "YELLOW LED BLINKING (payment processing)");
     }
 
     private void stopYellowLED() {
-        if (bleManager != null && bleManager.isConnected()) {
-            Log.d(TAG, "Stopping YELLOW LED");
-            bleManager.sendOffCommand();
-        }
+        BLEConnectionManager.getInstance().sendOffCommand();
+        Log.d(TAG, "YELLOW LED OFF (payment completed)");
     }
 
     private void showError(String message) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        // Disconnect BLE when activity is destroyed
-        if (bleManager != null) {
-            bleManager.disconnect();
-        }
     }
 }
 

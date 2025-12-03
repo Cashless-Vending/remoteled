@@ -28,6 +28,7 @@ import android.view.View;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import com.example.remoteled.ble.BLEConnectionManager;
 import com.example.remoteled.databinding.ActivityMainBinding;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
@@ -326,6 +327,14 @@ public class MainActivity extends AppCompatActivity {
                         characteristic = service.getCharacteristic(characteristicUUID);
                         Log.i(TAG, "Characteristic found.");
                         updateConnectionStatus("Characteristic found");
+
+                        // Initialize singleton BLE manager
+                        BLEConnectionManager.getInstance().initialize(bluetoothGatt, characteristic, bleKey);
+
+                        // Turn RED LED ON (BLE connected, loading device info)
+                        BLEConnectionManager.getInstance().sendOnCommand("red");
+                        Log.d(TAG, "RED LED ON (BLE connected, loading device info)");
+
                         enableControlButtons(true); // handshake complete
                         // If we came from QR and have a deviceId, navigate into app flow
                         if (scannedDeviceId != null && !scannedDeviceId.isEmpty()) {
@@ -333,7 +342,7 @@ public class MainActivity extends AppCompatActivity {
                                 Intent i = new Intent(MainActivity.this, ProductSelectionActivity.class);
                                 i.putExtra("DEVICE_ID", scannedDeviceId);
                                 startActivity(i);
-                                finish();
+                                // Don't finish - keep MainActivity alive to maintain BLE connection
                             });
                         }
                         if (ActivityCompat.checkSelfPermission(MainActivity.this, android.Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
