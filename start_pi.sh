@@ -1,5 +1,6 @@
 #!/bin/bash
-# Don't use set -e as we handle errors manually
+# RemoteLED Pi Startup Script
+# Run this to start the BLE peripheral and kiosk on a Raspberry Pi
 
 echo "================================================"
 echo "RemoteLED Pi Startup (BLE + Kiosk)"
@@ -23,8 +24,34 @@ echo -e "${YELLOW}Pi IP: ${PI_IP}${NC}"
 echo -e "${YELLOW}macOS Server: ${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
 echo ""
 
-# Step 1: Ensure device ID is set
-echo -e "${YELLOW}[1/4] Checking device ID...${NC}"
+# Step 0: Check if uv is installed
+echo -e "${YELLOW}[0/5] Checking uv installation...${NC}"
+if ! command -v uv &> /dev/null; then
+    echo -e "${RED}✗ uv is not installed${NC}"
+    echo ""
+    echo "Install uv first:"
+    echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
+    echo ""
+    echo "Then run this script again."
+    exit 1
+fi
+echo -e "${GREEN}✓ uv is installed: $(uv --version)${NC}"
+echo ""
+
+# Step 1: Sync dependencies (install Pi-specific packages)
+echo -e "${YELLOW}[1/5] Syncing dependencies (uv sync --extra pi)...${NC}"
+cd "$REPO_ROOT"
+if uv sync --extra pi; then
+    echo -e "${GREEN}✓ Dependencies synced${NC}"
+else
+    echo -e "${RED}✗ Failed to sync dependencies${NC}"
+    echo "Try running manually: cd $REPO_ROOT && uv sync --extra pi"
+    exit 1
+fi
+echo ""
+
+# Step 2: Ensure device ID is set
+echo -e "${YELLOW}[2/5] Checking device ID...${NC}"
 if [ ! -f "$DEVICE_ID_FILE" ]; then
     echo "Device ID file not found. Creating with default ID..."
     sudo mkdir -p /usr/local/remoteled
@@ -37,23 +64,22 @@ fi
 export DEVICE_ID=$(cat "$DEVICE_ID_FILE" | tr -d ' \r\n')
 echo ""
 
-# Step 2: Check nginx for kiosk
-echo -e "${YELLOW}[2/4] Checking nginx...${NC}"
-if ! systemctl is-active --quiet nginx; then
+# Step 3: Check nginx for kiosk
+echo -e "${YELLOW}[3/5] Checking nginx...${NC}"
+if ! systemctl is-active --quiet nginx 2>/dev/null; then
     echo "Starting nginx..."
-    sudo systemctl start nginx
+    sudo systemctl start nginx 2>/dev/null || true
     sleep 1
 fi
-if systemctl is-active --quiet nginx; then
+if systemctl is-active --quiet nginx 2>/dev/null; then
     echo -e "${GREEN}✓ nginx is running${NC}"
 else
-    echo -e "${RED}✗ nginx failed to start${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠ nginx not available (kiosk display may not work)${NC}"
 fi
 echo ""
 
-# Step 3: Verify macOS backend is reachable
-echo -e "${YELLOW}[3/4] Checking macOS backend...${NC}"
+# Step 4: Verify macOS backend is reachable
+echo -e "${YELLOW}[4/5] Checking macOS backend...${NC}"
 if curl -s -m 3 "http://${MACOS_SERVER_IP}:${BACKEND_PORT}/health" > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Backend API reachable at http://${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
 else
@@ -63,8 +89,8 @@ else
 fi
 echo ""
 
-# Step 4: Start BLE Peripheral
-echo -e "${YELLOW}[4/4] Starting BLE Peripheral...${NC}"
+# Step 5: Start BLE Peripheral
+echo -e "${YELLOW}[5/5] Starting BLE Peripheral...${NC}"
 
 # Kill any existing BLE process
 echo "  Stopping any existing BLE processes..."
@@ -80,18 +106,18 @@ sudo rm -f /tmp/remoteled_ble.log
 sudo touch /tmp/remoteled_ble.log
 sudo chmod 666 /tmp/remoteled_ble.log
 
-# Start BLE in background
-echo "  Starting BLE service..."
+# Start BLE using uv run (this ensures all dependencies are available)
+echo "  Starting BLE service with uv run..."
 cd "$REPO_ROOT"
 
-# Use a simpler approach: run Python directly with sudo
+# Run with sudo but use uv run to get the right Python environment
 sudo -E DEVICE_ID="$DEVICE_ID" API_BASE_URL="$API_BASE_URL" \
-    nohup python3 pi/python/code.py > /tmp/remoteled_ble.log 2>&1 &
+    nohup $(which uv) run --extra pi python pi/python/code.py > /tmp/remoteled_ble.log 2>&1 &
 
 echo "  Waiting for BLE to initialize (5 seconds)..."
 sleep 5
 
-# Check if the Python process is running (look for the actual process)
+# Check if the Python process is running
 if pgrep -f "python.*code.py" > /dev/null; then
     BLE_PID=$(pgrep -f "python.*code.py" | head -1)
     echo -e "${GREEN}✓ BLE Peripheral started (PID: $BLE_PID)${NC}"
@@ -100,9 +126,9 @@ if pgrep -f "python.*code.py" > /dev/null; then
 else
     echo -e "${RED}✗ BLE Peripheral failed to start${NC}"
     echo ""
-    echo "Last 20 lines of log:"
+    echo "Last 30 lines of log:"
     echo "----------------------------------------"
-    tail -20 /tmp/remoteled_ble.log
+    tail -30 /tmp/remoteled_ble.log
     echo "----------------------------------------"
     echo ""
     echo "Full log: sudo cat /tmp/remoteled_ble.log"
@@ -136,7 +162,7 @@ echo -e "${GREEN}Pi services started successfully!${NC}"
 echo "================================================"
 echo ""
 echo "Services:"
-echo "  • nginx: running"
+echo "  • nginx: $(systemctl is-active nginx 2>/dev/null || echo 'not available')"
 echo "  • BLE Peripheral: running (PID: $BLE_PID)"
 echo "  • Backend API: $API_BASE_URL (macOS)"
 echo "  • Kiosk page: http://localhost"
