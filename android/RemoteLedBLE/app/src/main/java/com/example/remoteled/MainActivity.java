@@ -364,6 +364,14 @@ public class MainActivity extends AppCompatActivity {
                     if (service != null) {
                         characteristic = service.getCharacteristic(characteristicUUID);
                         Log.i(TAG, "Characteristic found.");
+
+                        // Log characteristic properties for debugging
+                        int properties = characteristic.getProperties();
+                        Log.d(TAG, "Characteristic properties: " + properties);
+                        Log.d(TAG, "  PROPERTY_READ: " + ((properties & BluetoothGattCharacteristic.PROPERTY_READ) != 0));
+                        Log.d(TAG, "  PROPERTY_WRITE: " + ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE) != 0));
+                        Log.d(TAG, "  PROPERTY_WRITE_NO_RESPONSE: " + ((properties & BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE) != 0));
+
                         updateConnectionStatus("Characteristic found");
 
                         // Initialize singleton BLE manager
@@ -417,6 +425,19 @@ public class MainActivity extends AppCompatActivity {
                     }
                     connect_ack();
                     Log.i(TAG, "Characteristic read successfully: " + Arrays.toString(data));
+                }
+            }
+
+            @Override
+            public void onCharacteristicWrite(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, int status) {
+                if (status == BluetoothGatt.GATT_SUCCESS) {
+                    Log.d(TAG, "Characteristic write successful");
+                    // Notify BLEConnectionManager that write completed
+                    BLEConnectionManager.getInstance().onWriteComplete();
+                } else {
+                    Log.e(TAG, "Characteristic write failed with status: " + status);
+                    // Still notify to process next command
+                    BLEConnectionManager.getInstance().onWriteComplete();
                 }
             }
         });

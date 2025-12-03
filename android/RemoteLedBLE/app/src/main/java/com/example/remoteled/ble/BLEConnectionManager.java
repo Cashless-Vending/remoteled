@@ -2,13 +2,19 @@ package com.example.remoteled.ble;
 
 import android.bluetooth.BluetoothGatt;
 import android.bluetooth.BluetoothGattCharacteristic;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 import org.json.JSONObject;
 
+import java.util.LinkedList;
+import java.util.Queue;
+
 /**
- * Singleton BLE Connection Manager
+ * Singleton BLE Connection Manager with Write Queue
  * Maintains a single BLE connection shared across all activities
+ * Handles BLE write operations sequentially to avoid race conditions
  */
 public class BLEConnectionManager {
     private static final String TAG = "BLEConnectionManager";
@@ -18,6 +24,11 @@ public class BLEConnectionManager {
     private BluetoothGattCharacteristic characteristic;
     private String bleKey;
     private boolean isConnected = false;
+
+    // Write queue to handle sequential BLE operations
+    private final Queue<String> writeQueue = new LinkedList<>();
+    private boolean isWriting = false;
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
     private BLEConnectionManager() {}
 
@@ -38,6 +49,71 @@ public class BLEConnectionManager {
 
     public boolean isConnected() {
         return isConnected && bluetoothGatt != null && characteristic != null;
+    }
+
+    /**
+     * Called when a BLE write completes (from BluetoothGattCallback)
+     */
+    public void onWriteComplete() {
+        isWriting = false;
+        // Process next command in queue after a small delay
+        handler.postDelayed(this::processNextWrite, 100);
+    }
+
+    /**
+     * Process the next write command from the queue
+     */
+    private void processNextWrite() {
+        synchronized (writeQueue) {
+            if (isWriting || writeQueue.isEmpty()) {
+                return;
+            }
+
+            String payload = writeQueue.poll();
+            if (payload != null) {
+                isWriting = true;
+                executeWrite(payload);
+            }
+        }
+    }
+
+    /**
+     * Execute the actual BLE write operation
+     */
+    private void executeWrite(String payload) {
+        if (!isConnected()) {
+            Log.w(TAG, "Not connected, cannot write: " + payload);
+            isWriting = false;
+            return;
+        }
+
+        try {
+            Log.d(TAG, "Executing BLE write: " + payload);
+            characteristic.setValue(payload.getBytes());
+            boolean success = bluetoothGatt.writeCharacteristic(characteristic);
+
+            if (!success) {
+                Log.e(TAG, "writeCharacteristic returned false");
+                isWriting = false;
+                // Try next command after delay
+                handler.postDelayed(this::processNextWrite, 100);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error writing characteristic: " + e.getMessage());
+            isWriting = false;
+            handler.postDelayed(this::processNextWrite, 100);
+        }
+    }
+
+    /**
+     * Queue a BLE command to be sent
+     */
+    private void queueCommand(String payload) {
+        synchronized (writeQueue) {
+            writeQueue.offer(payload);
+            Log.d(TAG, "Queued command (queue size: " + writeQueue.size() + ")");
+        }
+        processNextWrite();
     }
 
     public void disconnect() {
@@ -92,12 +168,10 @@ public class BLEConnectionManager {
             }
 
             String payload = json.toString();
-            Log.d(TAG, "Sending BLE command: " + payload);
-
-            characteristic.setValue(payload.getBytes());
-            bluetoothGatt.writeCharacteristic(characteristic);
+            Log.d(TAG, "Queueing BLE command: " + payload);
+            queueCommand(payload);
         } catch (Exception e) {
-            Log.e(TAG, "Error sending command: " + e.getMessage());
+            Log.e(TAG, "Error creating command: " + e.getMessage());
         }
     }
 }
