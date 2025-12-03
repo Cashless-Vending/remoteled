@@ -129,6 +129,7 @@ class LEDController:
 
                 elif command == "OFF":
                     # Turn off all LEDs - device stopped
+                    # Accept any color value (including "all")
                     led_service.turn_off_all()
                     led_state = 'off'
                     print(f"[LED] ALL OFF (device stopped)")

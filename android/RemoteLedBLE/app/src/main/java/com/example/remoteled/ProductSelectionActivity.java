@@ -63,8 +63,10 @@ public class ProductSelectionActivity extends AppCompatActivity {
         setupRecyclerView();
         setupListeners();
 
+        // Start RED LED (solid ON while loading)
+        startRedLED();
+
         // Fetch device and services from API
-        // RED LED is already ON from MainActivity
         fetchDeviceWithServices();
     }
     
