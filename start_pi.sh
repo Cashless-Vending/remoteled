@@ -19,13 +19,58 @@ DEFAULT_DEVICE_ID="d1111111-1111-1111-1111-111111111111"
 MACOS_SERVER_IP="192.168.1.99"
 BACKEND_PORT=9999
 PI_IP=$(hostname -I | awk '{print $1}')
+QR_DATA_FILE="/var/www/html/qr_data.json"
 
 echo -e "${YELLOW}Pi IP: ${PI_IP}${NC}"
 echo -e "${YELLOW}macOS Server: ${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
 echo ""
 
-# Step 0: Check if uv is installed
-echo -e "${YELLOW}[0/5] Checking uv installation...${NC}"
+# =============================================================================
+# STEP 0: CLEANUP - Do this FIRST before anything else
+# =============================================================================
+echo -e "${YELLOW}[0/6] Preparing environment (cleanup)...${NC}"
+
+# Kill any existing BLE processes FIRST
+echo "  → Stopping any existing BLE processes..."
+sudo pkill -f "python.*code.py" 2>/dev/null || true
+sleep 1
+
+# Create directories
+echo "  → Creating required directories..."
+sudo mkdir -p /var/www/html
+sudo mkdir -p /usr/local/remoteled
+sudo mkdir -p /tmp
+
+# AGGRESSIVELY clear the QR data file
+echo "  → Clearing stale QR data..."
+sudo rm -f "$QR_DATA_FILE" 2>/dev/null || true
+sudo rm -f "${QR_DATA_FILE}.tmp" 2>/dev/null || true
+
+# Write fresh empty state with timestamp 0
+echo '{"message":"Loading...","timestamp":0}' | sudo tee "$QR_DATA_FILE" > /dev/null
+sudo chmod 666 "$QR_DATA_FILE"
+
+# Clear BLE log
+echo "  → Clearing old logs..."
+sudo rm -f /tmp/remoteled_ble.log
+sudo touch /tmp/remoteled_ble.log
+sudo chmod 666 /tmp/remoteled_ble.log
+
+# Verify QR file is clean
+QR_CHECK=$(cat "$QR_DATA_FILE" 2>/dev/null)
+if echo "$QR_CHECK" | grep -q "Loading"; then
+    echo -e "${GREEN}✓ QR data file cleared successfully${NC}"
+    echo "  Content: $QR_CHECK"
+else
+    echo -e "${RED}✗ Failed to clear QR data file${NC}"
+    echo "  Content: $QR_CHECK"
+fi
+echo ""
+
+# =============================================================================
+# STEP 1: Check uv installation
+# =============================================================================
+echo -e "${YELLOW}[1/6] Checking uv installation...${NC}"
 if ! command -v uv &> /dev/null; then
     echo -e "${RED}✗ uv is not installed${NC}"
     echo ""
@@ -38,10 +83,12 @@ fi
 echo -e "${GREEN}✓ uv is installed: $(uv --version)${NC}"
 echo ""
 
-# Step 1: Sync dependencies (install Pi-specific packages)
-echo -e "${YELLOW}[1/5] Syncing dependencies (uv sync --extra pi)...${NC}"
+# =============================================================================
+# STEP 2: Sync dependencies
+# =============================================================================
+echo -e "${YELLOW}[2/6] Syncing dependencies (uv sync --extra pi)...${NC}"
 cd "$REPO_ROOT"
-if uv sync --extra pi; then
+if uv sync --extra pi 2>&1 | tail -5; then
     echo -e "${GREEN}✓ Dependencies synced${NC}"
 else
     echo -e "${RED}✗ Failed to sync dependencies${NC}"
@@ -50,27 +97,36 @@ else
 fi
 echo ""
 
-# Step 2: Ensure device ID is set
-echo -e "${YELLOW}[2/5] Checking device ID...${NC}"
+# =============================================================================
+# STEP 3: Check device ID
+# =============================================================================
+echo -e "${YELLOW}[3/6] Checking device ID...${NC}"
 if [ ! -f "$DEVICE_ID_FILE" ]; then
     echo "Device ID file not found. Creating with default ID..."
-    sudo mkdir -p /usr/local/remoteled
     echo -n "$DEFAULT_DEVICE_ID" | sudo tee "$DEVICE_ID_FILE" > /dev/null
     echo -e "${GREEN}✓ Created device ID file: $DEFAULT_DEVICE_ID${NC}"
 else
     DEVICE_ID=$(cat "$DEVICE_ID_FILE" | tr -d ' \r\n')
-    echo -e "${GREEN}✓ Device ID already set: $DEVICE_ID${NC}"
+    echo -e "${GREEN}✓ Device ID: $DEVICE_ID${NC}"
 fi
 export DEVICE_ID=$(cat "$DEVICE_ID_FILE" | tr -d ' \r\n')
 echo ""
 
-# Step 3: Check nginx for kiosk
-echo -e "${YELLOW}[3/5] Checking nginx...${NC}"
-if ! systemctl is-active --quiet nginx 2>/dev/null; then
-    echo "Starting nginx..."
+# =============================================================================
+# STEP 4: Check/start nginx
+# =============================================================================
+echo -e "${YELLOW}[4/6] Checking nginx...${NC}"
+# Restart nginx to clear any caches
+if systemctl is-active --quiet nginx 2>/dev/null; then
+    echo "  Restarting nginx to clear cache..."
+    sudo systemctl restart nginx 2>/dev/null || true
+    sleep 1
+else
+    echo "  Starting nginx..."
     sudo systemctl start nginx 2>/dev/null || true
     sleep 1
 fi
+
 if systemctl is-active --quiet nginx 2>/dev/null; then
     echo -e "${GREEN}✓ nginx is running${NC}"
 else
@@ -78,8 +134,10 @@ else
 fi
 echo ""
 
-# Step 4: Verify macOS backend is reachable
-echo -e "${YELLOW}[4/5] Checking macOS backend...${NC}"
+# =============================================================================
+# STEP 5: Check backend connectivity
+# =============================================================================
+echo -e "${YELLOW}[5/6] Checking macOS backend...${NC}"
 if curl -s -m 3 "http://${MACOS_SERVER_IP}:${BACKEND_PORT}/health" > /dev/null 2>&1; then
     echo -e "${GREEN}✓ Backend API reachable at http://${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
 else
@@ -89,46 +147,33 @@ else
 fi
 echo ""
 
-# Step 5: Start BLE Peripheral
-echo -e "${YELLOW}[5/5] Starting BLE Peripheral...${NC}"
-
-# Kill any existing BLE process
-echo "  Stopping any existing BLE processes..."
-sudo pkill -f "python.*code.py" 2>/dev/null || true
-sleep 1
+# =============================================================================
+# STEP 6: Start BLE Peripheral
+# =============================================================================
+echo -e "${YELLOW}[6/6] Starting BLE Peripheral...${NC}"
 
 # Set up environment
 export API_BASE_URL="http://${MACOS_SERVER_IP}:${BACKEND_PORT}"
-export DEVICE_ID=$(cat "$DEVICE_ID_FILE" | tr -d ' \r\n')
 
-# Clear old log
-sudo rm -f /tmp/remoteled_ble.log
-sudo touch /tmp/remoteled_ble.log
-sudo chmod 666 /tmp/remoteled_ble.log
+# Double-check QR file is still clean before starting
+echo "  → Verifying QR data is clean..."
+QR_PRE=$(cat "$QR_DATA_FILE" 2>/dev/null)
+echo "    Pre-start content: $QR_PRE"
 
-# Clear stale QR data file (prevents showing old "CONNECTED" message)
-echo "  Clearing stale QR data..."
-sudo mkdir -p /var/www/html
-echo '{"message":"Starting...","timestamp":0}' | sudo tee /var/www/html/qr_data.json > /dev/null
-sudo chmod 666 /var/www/html/qr_data.json
-
-# Start BLE using uv run (this ensures all dependencies are available)
-echo "  Starting BLE service with uv run..."
+# Start BLE using uv run
+echo "  → Starting BLE service..."
 cd "$REPO_ROOT"
 
-# Run with sudo but use uv run to get the right Python environment
 sudo -E DEVICE_ID="$DEVICE_ID" API_BASE_URL="$API_BASE_URL" \
     nohup $(which uv) run --extra pi python pi/python/code.py > /tmp/remoteled_ble.log 2>&1 &
 
-echo "  Waiting for BLE to initialize (5 seconds)..."
-sleep 5
+echo "  → Waiting for BLE to initialize (6 seconds)..."
+sleep 6
 
 # Check if the Python process is running
 if pgrep -f "python.*code.py" > /dev/null; then
     BLE_PID=$(pgrep -f "python.*code.py" | head -1)
     echo -e "${GREEN}✓ BLE Peripheral started (PID: $BLE_PID)${NC}"
-    echo -e "  Device ID: $DEVICE_ID"
-    echo -e "  Backend URL: $API_BASE_URL"
 else
     echo -e "${RED}✗ BLE Peripheral failed to start${NC}"
     echo ""
@@ -136,65 +181,62 @@ else
     echo "----------------------------------------"
     tail -30 /tmp/remoteled_ble.log
     echo "----------------------------------------"
-    echo ""
-    echo "Full log: sudo cat /tmp/remoteled_ble.log"
     exit 1
 fi
 echo ""
 
-# Wait for QR code generation
-echo -e "${YELLOW}Waiting for QR code generation...${NC}"
-sleep 2
-
-# Check if QR data is ready (retry a few times)
-echo -e "${YELLOW}Checking QR code status...${NC}"
+# =============================================================================
+# VERIFY QR CODE
+# =============================================================================
+echo -e "${YELLOW}Verifying QR code generation...${NC}"
 QR_READY=false
-for i in 1 2 3 4 5; do
-    if [ -f "/var/www/html/qr_data.json" ]; then
-        QR_CONTENT=$(cat /var/www/html/qr_data.json 2>/dev/null)
-        if echo "$QR_CONTENT" | grep -q "http.*detail"; then
-            QR_URL=$(echo "$QR_CONTENT" | grep -o 'http[^"]*' | head -1)
-            echo -e "${GREEN}✓ QR Code ready!${NC}"
-            echo -e "  Detail URL: $QR_URL"
-            QR_READY=true
-            break
-        fi
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    QR_CONTENT=$(cat "$QR_DATA_FILE" 2>/dev/null)
+    if echo "$QR_CONTENT" | grep -q "http.*detail"; then
+        QR_URL=$(echo "$QR_CONTENT" | grep -o 'http[^"]*' | head -1)
+        echo -e "${GREEN}✓ QR Code ready!${NC}"
+        echo -e "  URL: $QR_URL"
+        QR_READY=true
+        break
     fi
-    echo "  Waiting for QR code... (attempt $i/5)"
+    echo "  Attempt $i/10: $(echo "$QR_CONTENT" | head -c 50)..."
     sleep 1
 done
 
 if [ "$QR_READY" = false ]; then
-    echo -e "${YELLOW}⚠ QR code not ready yet${NC}"
-    if [ -f "/var/www/html/qr_data.json" ]; then
-        echo "  Current content: $(cat /var/www/html/qr_data.json)"
-    fi
-    echo "  Check BLE logs for errors"
+    echo -e "${RED}✗ QR code generation failed${NC}"
+    echo "  Final content: $(cat "$QR_DATA_FILE")"
+    echo ""
+    echo "BLE Log (last 20 lines):"
+    tail -20 /tmp/remoteled_ble.log
 fi
 echo ""
 
-# Summary
+# =============================================================================
+# SUMMARY
+# =============================================================================
 echo "================================================"
-echo -e "${GREEN}Pi services started successfully!${NC}"
+if [ "$QR_READY" = true ]; then
+    echo -e "${GREEN}✓ Pi services started successfully!${NC}"
+else
+    echo -e "${YELLOW}⚠ Pi started but QR code may have issues${NC}"
+fi
 echo "================================================"
 echo ""
 echo "Services:"
 echo "  • nginx: $(systemctl is-active nginx 2>/dev/null || echo 'not available')"
-echo "  • BLE Peripheral: running (PID: $BLE_PID)"
-echo "  • Backend API: $API_BASE_URL (macOS)"
-echo "  • Kiosk page: http://localhost"
+echo "  • BLE: running (PID: $BLE_PID)"
+echo "  • Backend: $API_BASE_URL"
 echo ""
-echo "Logs:"
-echo "  • BLE: sudo tail -f /tmp/remoteled_ble.log"
+echo "QR Data File: $QR_DATA_FILE"
+echo "Content: $(cat "$QR_DATA_FILE" 2>/dev/null)"
 echo ""
-echo "To open kiosk in Chrome:"
-echo "  cd $REPO_ROOT/pi && ./kiosk.sh"
+echo "Commands:"
+echo "  • View logs: sudo tail -f /tmp/remoteled_ble.log"
+echo "  • Open kiosk: cd $REPO_ROOT/pi && ./kiosk.sh"
+echo "  • Stop BLE: sudo pkill -f 'python.*code.py'"
 echo ""
-echo "To stop BLE service:"
-echo "  sudo pkill -f 'python.*code.py'"
-echo ""
-echo "Monitoring BLE logs (Ctrl+C to stop, service keeps running)..."
+echo "Monitoring BLE logs (Ctrl+C to stop)..."
 echo ""
 
-# Follow BLE logs
 sudo tail -f /tmp/remoteled_ble.log
