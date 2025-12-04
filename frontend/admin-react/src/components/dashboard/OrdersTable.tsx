@@ -1,16 +1,51 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Order } from '../../types'
 import { formatCurrency, formatDateTime } from '../../utils/format'
+import { statsApi } from '../../api'
 
 interface OrdersTableProps {
   orders: Order[]
   onExportCSV: () => void
+  onRefresh?: () => void
 }
 
 const ITEMS_PER_PAGE = 10
+const AUTO_REFRESH_INTERVAL = 5000 // 5 seconds
 
-export const OrdersTable = ({ orders, onExportCSV }: OrdersTableProps) => {
+export const OrdersTable = ({ orders: initialOrders, onExportCSV, onRefresh }: OrdersTableProps) => {
   const [currentPage, setCurrentPage] = useState(1)
+  const [orders, setOrders] = useState<Order[]>(initialOrders || [])
+  const [loading, setLoading] = useState(false)
+  const [lastRefresh, setLastRefresh] = useState(new Date())
+
+  // Fetch latest orders
+  const fetchOrders = async () => {
+    setLoading(true)
+    try {
+      const data = await statsApi.getRecentOrders(50)
+      setOrders(data)
+      setLastRefresh(new Date())
+      onRefresh?.()
+    } catch (err) {
+      console.error('Failed to fetch orders:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Auto-refresh every 5 seconds
+  useEffect(() => {
+    fetchOrders() // Initial fetch
+    const interval = setInterval(fetchOrders, AUTO_REFRESH_INTERVAL)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Update from props if they change
+  useEffect(() => {
+    if (initialOrders?.length > 0) {
+      setOrders(initialOrders)
+    }
+  }, [initialOrders])
   
   const safeOrders = orders || []
 
@@ -85,11 +120,27 @@ export const OrdersTable = ({ orders, onExportCSV }: OrdersTableProps) => {
 
   return (
     <div className="card">
-      <div className="card-header">
-        <div className="card-title">Recent Orders</div>
-        <button className="btn btn-primary btn-sm" onClick={onExportCSV}>
-          Export CSV
-        </button>
+      <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <div>
+          <div className="card-title">Recent Orders</div>
+          <div style={{ fontSize: '0.75rem', color: '#718096' }}>
+            Auto-refresh every 5s • Last: {lastRefresh.toLocaleTimeString()}
+            {loading && ' • Refreshing...'}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button 
+            className="btn btn-sm" 
+            onClick={fetchOrders}
+            disabled={loading}
+            style={{ padding: '0.25rem 0.75rem' }}
+          >
+            ↻ Refresh
+          </button>
+          <button className="btn btn-primary btn-sm" onClick={onExportCSV}>
+            Export CSV
+          </button>
+        </div>
       </div>
       <table>
         <thead>

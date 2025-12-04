@@ -1,22 +1,22 @@
 import { API_BASE_URL } from '../config/constants'
-import { firebaseAuthService } from '../services/firebaseAuth'
 
 export interface ApiResponse<T> {
   data?: T
   error?: string
 }
 
+const TOKEN_KEY = 'remoteled_auth_token'
+
 /**
- * Get Firebase ID token for authentication
+ * Get JWT token from localStorage for authentication
  */
-export const getAuthToken = async (): Promise<string> => {
-  const token = await firebaseAuthService.getIdToken()
-  return token || ''
+export const getAuthToken = (): string => {
+  return localStorage.getItem(TOKEN_KEY) || ''
 }
 
 export const apiClient = {
   async get<T>(endpoint: string): Promise<T> {
-    const token = await getAuthToken()
+    const token = getAuthToken()
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -37,7 +37,7 @@ export const apiClient = {
     }
     
     if (requireAuth) {
-      const token = await getAuthToken()
+      const token = getAuthToken()
       headers['Authorization'] = `Bearer ${token}`
     }
     
@@ -56,7 +56,7 @@ export const apiClient = {
   },
 
   async put<T>(endpoint: string, body: any): Promise<T> {
-    const token = await getAuthToken()
+    const token = getAuthToken()
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'PUT',
       headers: {
@@ -75,7 +75,7 @@ export const apiClient = {
   },
 
   async delete(endpoint: string): Promise<{ success: boolean; message: string }> {
-    const token = await getAuthToken()
+    const token = getAuthToken()
     const response = await fetch(`${API_BASE_URL}${endpoint}`, {
       method: 'DELETE',
       headers: {

@@ -85,7 +85,7 @@ export const LoginForm = ({ isOpen, onClose, onSubmit, onSignup }: LoginFormProp
             borderRadius: '4px',
             border: '1px solid #e2e8f0'
           }}>
-            <strong>Note:</strong> Your account will be created with Firebase Authentication and automatically granted admin access.
+            <strong>Note:</strong> Your account will be created with admin access. Password must be at least 8 characters.
           </div>
         )}
 

@@ -17,7 +17,7 @@ import {
 import type { DeviceModel, Location, DeviceModelCreate, DeviceModelUpdate, LocationCreate, LocationUpdate, ServiceType, ServiceTypeCreate, ServiceTypeUpdate } from '../types/reference'
 import { Header } from '../components/layout/Header'
 import { DashboardLayout } from '../components/layout/DashboardLayout'
-import { StatsGrid, DeviceGrid, OrdersTable, OrderTrendsChart, ServicesTable, LogsTable, DeviceModelsTable, LocationsTable, ServiceTypesTable } from '../components/dashboard'
+import { StatsGrid, DeviceGrid, OrdersTable, OrderTrendsChart, ServicesTable, LogsTable, DeviceModelsTable, LocationsTable, ServiceTypesTable, LiveOrdersPanel } from '../components/dashboard'
 import { DeviceForm, ServiceForm } from '../components/forms'
 import { DeviceModelForm } from '../components/forms/DeviceModelForm'
 import { LocationForm } from '../components/forms/LocationForm'
@@ -538,6 +538,11 @@ export const Dashboard = () => {
         return (
           <div className="overview-stack">
             {stats ? <StatsGrid stats={stats} devices={devices} /> : null}
+            
+            {/* Live Orders Panel - Real-time order tracking */}
+            <div style={{ marginTop: '1.5rem' }}>
+              <LiveOrdersPanel refreshInterval={5000} />
+            </div>
             
             <div style={{ marginTop: '1.5rem' }}>
               <div className="card">
