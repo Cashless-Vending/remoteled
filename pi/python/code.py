@@ -23,7 +23,10 @@ CHAR_UUID = f'0000{SHORT_CHAR_UUID}-0000-1000-8000-00805f9b34fb'
 # Machine configuration
 MACHINE_ID = os.getenv('MACHINE_ID', 'UNKNOWN')
 DEVICE_ID = os.getenv('DEVICE_ID', 'd1111111-1111-1111-1111-111111111111')
-API_BASE_URL = os.getenv('API_BASE_URL', 'http://192.168.1.158:9999')
+API_BASE_URL = os.getenv('API_BASE_URL', '')
+if not API_BASE_URL:
+    print("[CONFIG] ⚠️ API_BASE_URL not set - using localhost:9999 as fallback")
+    API_BASE_URL = 'http://localhost:9999'
 
 # Global state for the LED and BLE characteristics
 led_state = 'off'
@@ -142,11 +145,26 @@ class LEDController:
 
     @classmethod
     def on_disconnect(cls, adapter_address, device_address):
+        global led_service, led_state, DETAIL_URL
         print(f"[BLE] Device disconnected: {device_address}")
-        # Don't restore QR code here - wait for OFF command from app
-        # The app will send OFF command when service is complete
-        # This keeps the kiosk showing "CONNECTED" during service
-        print("[BLE] BLE disconnected (kiosk stays on current screen until OFF command)")
+        
+        # Give the app a brief moment in case it's sending final commands
+        time.sleep(0.3)
+        
+        # Failsafe: Reset to idle state after any disconnect
+        # This ensures the kiosk is scannable again even if app didn't send OFF/RESET
+        print("[BLE] 🔄 Disconnect cleanup - restoring idle state...")
+        
+        if led_service:
+            led_service.stop_blink()
+            led_service.turn_off_all()
+            led_service.set_color_exclusive("red")
+            led_state = 'red_on'
+        
+        # Restore QR code for next user
+        if DETAIL_URL:
+            publish_qr_code(DETAIL_URL)
+            print("[BLE] ✅ QR code restored for next user")
 
     @classmethod
     def on_read(cls, options):
@@ -215,6 +233,17 @@ class LEDController:
             elif command == "CONNECT":
                 print("[BLE] ✅ CONNECT command received")
                 update_kiosk_state(status='CONNECTED', qr_url=DETAIL_URL, message='Device Connected')
+
+            elif command == "RESET":
+                # Fresh start - stop everything, set red on, restore QR
+                print("[BLE] 🔄 RESET command - fresh start")
+                led_service.stop_blink()
+                led_service.turn_off_all()
+                led_service.set_color_exclusive("red")
+                led_state = 'red_on'
+                if DETAIL_URL:
+                    publish_qr_code(DETAIL_URL)
+                print("[BLE] ✅ Reset complete - red on, QR restored")
             else:
                 print(f"[BLE] ❓ Unknown command: {command}")
 

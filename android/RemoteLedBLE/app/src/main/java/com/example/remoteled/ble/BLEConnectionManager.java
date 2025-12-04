@@ -30,7 +30,8 @@ public class BLEConnectionManager {
     private boolean isWriting = false;
     private final Handler handler = new Handler(Looper.getMainLooper());
 
-    private BLEConnectionManager() {}
+    private BLEConnectionManager() {
+    }
 
     public static synchronized BLEConnectionManager getInstance() {
         if (instance == null) {
@@ -40,11 +41,18 @@ public class BLEConnectionManager {
     }
 
     public void initialize(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic, String bleKey) {
+        // Clear stale state from any previous session
+        synchronized (writeQueue) {
+            writeQueue.clear();
+        }
+        isWriting = false;
+
+        // Set new connection
         this.bluetoothGatt = gatt;
         this.characteristic = characteristic;
         this.bleKey = bleKey;
         this.isConnected = true;
-        Log.d(TAG, "BLE connection initialized in singleton");
+        Log.d(TAG, "BLE connection initialized (fresh state)");
     }
 
     public boolean isConnected() {
@@ -127,11 +135,55 @@ public class BLEConnectionManager {
         Log.d(TAG, "BLE disconnected");
     }
 
+    /**
+     * Force disconnect and cleanup the BLE connection.
+     * This is more aggressive than disconnect() - clears the write queue,
+     * closes GATT connection, and resets all state to allow fresh reconnection.
+     */
+    public void forceDisconnect() {
+        // Clear write queue first
+        synchronized (writeQueue) {
+            writeQueue.clear();
+        }
+        isWriting = false;
+
+        // Close GATT connection
+        if (bluetoothGatt != null) {
+            try {
+                bluetoothGatt.disconnect();
+                bluetoothGatt.close();
+            } catch (Exception e) {
+                Log.e(TAG, "Error during force disconnect: " + e.getMessage());
+            }
+        }
+
+        // Reset all state
+        bluetoothGatt = null;
+        characteristic = null;
+        isConnected = false;
+        bleKey = null;
+        Log.d(TAG, "BLE force disconnected and cleaned up for fresh connection");
+    }
+
+    /**
+     * Reset all state to allow fresh connections (called after disconnect)
+     */
+    public void reset() {
+        isConnected = false;
+        isWriting = false;
+        synchronized (writeQueue) {
+            writeQueue.clear();
+        }
+        bluetoothGatt = null;
+        characteristic = null;
+        bleKey = null;
+        Log.d(TAG, "BLE manager reset for new connection");
+    }
+
     // LED Control Methods
     public void sendBlinkCommand(String color) {
-        // Blink continuously until explicitly stopped
-        // 9999 times = effectively infinite blinking
-        sendCommand("BLINK", color, 9999, 0.1, 0);
+        // Blink for ~6 seconds (30 times * 0.2s interval)
+        sendCommand("BLINK", color, 30, 0.2, 0);
     }
 
     public void sendOnCommand(String color) {
@@ -146,6 +198,20 @@ public class BLEConnectionManager {
         // Turn off ALL LEDs with single command
         // Pi side handles turning off all colors
         sendCommand("OFF", "all", 0, 0, 0);
+    }
+
+    /**
+     * Reset everything for a fresh start - clears queue, stops all LEDs, sets red
+     * on
+     */
+    public void sendResetCommand() {
+        // Clear any pending commands first
+        synchronized (writeQueue) {
+            writeQueue.clear();
+        }
+        isWriting = false;
+        // Send reset command
+        sendCommand("RESET", "all", 0, 0, 0);
     }
 
     private void sendCommand(String command, String color, int times, double interval, int duration) {
