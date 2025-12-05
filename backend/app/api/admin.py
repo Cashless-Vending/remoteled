@@ -222,8 +222,11 @@ def get_recent_orders(
             o.authorized_minutes,
             o.status,
             o.created_at,
+            o.updated_at,
             d.label as device_label,
-            s.type as service_type
+            d.id as device_id,
+            s.type as service_type,
+            s.id as service_id
         FROM orders o
         JOIN devices d ON o.device_id = d.id
         JOIN services s ON o.service_id = s.id
@@ -232,6 +235,125 @@ def get_recent_orders(
     """, (limit,))
     
     return cursor.fetchall()
+
+
+@router.get("/orders/live")
+def get_live_orders(cursor: RealDictCursor = Depends(get_db)):
+    """
+    Get live orders for real-time dashboard display.
+    Returns orders that are currently active (CREATED, PAID, RUNNING)
+    and recently completed ones (last 5 minutes).
+    Perfect for demo purposes to show order flow in real-time.
+    """
+    cursor.execute("""
+        SELECT 
+            o.id,
+            o.amount_cents,
+            o.authorized_minutes,
+            o.status,
+            o.created_at,
+            o.updated_at,
+            d.label as device_label,
+            d.id as device_id,
+            d.location as device_location,
+            s.type as service_type,
+            s.id as service_id,
+            s.price_cents as service_price,
+            CASE 
+                WHEN o.status IN ('CREATED', 'PAID', 'RUNNING') THEN 'active'
+                WHEN o.status = 'DONE' AND o.updated_at > NOW() - INTERVAL '5 minutes' THEN 'recent_complete'
+                WHEN o.status = 'FAILED' AND o.updated_at > NOW() - INTERVAL '5 minutes' THEN 'recent_failed'
+                ELSE 'historical'
+            END as order_category
+        FROM orders o
+        JOIN devices d ON o.device_id = d.id
+        JOIN services s ON o.service_id = s.id
+        WHERE 
+            o.status IN ('CREATED', 'PAID', 'RUNNING')
+            OR (o.status IN ('DONE', 'FAILED') AND o.updated_at > NOW() - INTERVAL '5 minutes')
+        ORDER BY 
+            CASE o.status 
+                WHEN 'RUNNING' THEN 1 
+                WHEN 'PAID' THEN 2 
+                WHEN 'CREATED' THEN 3 
+                WHEN 'DONE' THEN 4 
+                WHEN 'FAILED' THEN 5 
+            END,
+            o.updated_at DESC
+        LIMIT 50
+    """)
+    
+    orders = cursor.fetchall()
+    
+    # Add summary stats
+    active_count = sum(1 for o in orders if o['status'] in ('CREATED', 'PAID', 'RUNNING'))
+    completed_count = sum(1 for o in orders if o['status'] == 'DONE')
+    failed_count = sum(1 for o in orders if o['status'] == 'FAILED')
+    
+    return {
+        "orders": orders,
+        "summary": {
+            "active": active_count,
+            "completed": completed_count,
+            "failed": failed_count,
+            "total": len(orders)
+        },
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/orders/stats/realtime")
+def get_realtime_order_stats(cursor: RealDictCursor = Depends(get_db)):
+    """
+    Get real-time order statistics for dashboard widgets.
+    Useful for showing live counters and metrics.
+    """
+    cursor.execute("""
+        WITH recent_orders AS (
+            SELECT 
+                status,
+                amount_cents,
+                created_at,
+                updated_at
+            FROM orders
+            WHERE created_at > NOW() - INTERVAL '24 hours'
+        )
+        SELECT
+            COUNT(*) FILTER (WHERE status = 'CREATED') as pending_count,
+            COUNT(*) FILTER (WHERE status = 'PAID') as paid_count,
+            COUNT(*) FILTER (WHERE status = 'RUNNING') as running_count,
+            COUNT(*) FILTER (WHERE status = 'DONE') as completed_count,
+            COUNT(*) FILTER (WHERE status = 'FAILED') as failed_count,
+            COALESCE(SUM(amount_cents) FILTER (WHERE status IN ('PAID', 'RUNNING', 'DONE')), 0) as revenue_24h,
+            COUNT(*) as total_24h
+        FROM recent_orders
+    """)
+    
+    stats = cursor.fetchone()
+    
+    # Get orders from last hour for trend
+    cursor.execute("""
+        SELECT 
+            COUNT(*) as orders_last_hour,
+            COALESCE(SUM(amount_cents) FILTER (WHERE status IN ('PAID', 'RUNNING', 'DONE')), 0) as revenue_last_hour
+        FROM orders
+        WHERE created_at > NOW() - INTERVAL '1 hour'
+    """)
+    
+    hourly = cursor.fetchone()
+    
+    return {
+        "pending": stats['pending_count'],
+        "paid": stats['paid_count'],
+        "running": stats['running_count'],
+        "completed": stats['completed_count'],
+        "failed": stats['failed_count'],
+        "revenue_24h_cents": stats['revenue_24h'],
+        "total_orders_24h": stats['total_24h'],
+        "orders_last_hour": hourly['orders_last_hour'],
+        "revenue_last_hour_cents": hourly['revenue_last_hour'],
+        "timestamp": datetime.utcnow().isoformat()
+    }
 
 
 @router.get("/services/all")

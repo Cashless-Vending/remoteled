@@ -16,7 +16,9 @@ TRUNCATE TABLE logs, authorizations, orders, device_services, services, devices,
 INSERT INTO admins (id, email, password_hash, role, created_at) VALUES
 ('a1111111-1111-1111-1111-111111111111', 'admin@remoteled.com', '$2b$12$jIK7wrS49hEcFqJ194tuZ.Of1Xco2ENclslsc3XXCzztp4bLIXQrO', 'super_admin', NOW() - INTERVAL '90 days'),
 ('a2222222-2222-2222-2222-222222222222', 'owner@laundromat.com', '$2b$12$jIK7wrS49hEcFqJ194tuZ.Of1Xco2ENclslsc3XXCzztp4bLIXQrO', 'device_owner', NOW() - INTERVAL '60 days'),
-('a3333333-3333-3333-3333-333333333333', 'manager@vending.com', '$2b$12$jIK7wrS49hEcFqJ194tuZ.Of1Xco2ENclslsc3XXCzztp4bLIXQrO', 'manager', NOW() - INTERVAL '30 days');
+('a3333333-3333-3333-3333-333333333333', 'manager@vending.com', '$2b$12$jIK7wrS49hEcFqJ194tuZ.Of1Xco2ENclslsc3XXCzztp4bLIXQrO', 'manager', NOW() - INTERVAL '30 days'),
+-- Default test admin for development (matches frontend default credentials)
+('a4444444-4444-4444-4444-444444444444', 'testadmin@test.com', '$2b$12$jIK7wrS49hEcFqJ194tuZ.Of1Xco2ENclslsc3XXCzztp4bLIXQrO', 'admin', NOW() - INTERVAL '7 days');
 
 -- ============================================================
 -- DEVICE MODELS (Reference Data)

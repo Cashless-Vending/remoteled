@@ -9,4 +9,5 @@ export * from './LogsTable'
 export * from './DeviceModelsTable'
 export * from './LocationsTable'
 export * from './ServiceTypesTable'
+export * from './LiveOrdersPanel'
 
