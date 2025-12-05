@@ -35,10 +35,10 @@ def create_authorization(
     # Get order details
     cursor.execute(
         """
-        SELECT o.id, o.device_id, o.product_id, o.authorized_minutes, o.status,
+        SELECT o.id, o.device_id, o.service_id, o.authorized_minutes, o.status,
                s.type as service_type
         FROM orders o
-        JOIN services s ON o.product_id = s.id
+        JOIN services s ON o.service_id = s.id
         WHERE o.id = %s
         """,
         (auth_req.order_id,)

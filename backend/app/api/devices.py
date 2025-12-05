@@ -35,7 +35,7 @@ def get_device(device_id: str, cursor: RealDictCursor = Depends(get_db)):
 
 @router.get("/{device_id}/services", response_model=List[ServiceResponse])
 def get_device_services(device_id: str, cursor: RealDictCursor = Depends(get_db)):
-    """Get all active services/products for a device"""
+    """Get all active services assigned to a device"""
     # Validate UUID format
     validate_uuid(device_id, "Device ID")
     
@@ -44,10 +44,10 @@ def get_device_services(device_id: str, cursor: RealDictCursor = Depends(get_db)
     if not cursor.fetchone():
         raise HTTPException(status_code=404, detail="Device not found")
     
-    # Get active services
+    # Get active services assigned to this device
     cursor.execute(
         """
-        SELECT id, device_id, type, price_cents, fixed_minutes, 
+        SELECT id, type, price_cents, fixed_minutes, 
                minutes_per_25c, active, created_at
         FROM services
         WHERE device_id = %s AND active = true
@@ -62,7 +62,7 @@ def get_device_services(device_id: str, cursor: RealDictCursor = Depends(get_db)
 
 @router.get("/{device_id}/full", response_model=DeviceWithServicesResponse)
 def get_device_with_services(device_id: str, cursor: RealDictCursor = Depends(get_db)):
-    """Get device with all its services in one call"""
+    """Get device with all its assigned services in one call"""
     # Validate UUID format
     validate_uuid(device_id, "Device ID")
     
@@ -80,10 +80,10 @@ def get_device_with_services(device_id: str, cursor: RealDictCursor = Depends(ge
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
     
-    # Get active services
+    # Get active services assigned to this device
     cursor.execute(
         """
-        SELECT id, device_id, type, price_cents, fixed_minutes, 
+        SELECT id, type, price_cents, fixed_minutes, 
                minutes_per_25c, active, created_at
         FROM services
         WHERE device_id = %s AND active = true

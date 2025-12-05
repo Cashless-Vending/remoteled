@@ -11,7 +11,7 @@ export const useServices = (autoRefresh = false, interval = 30000) => {
     if (err?.message) {
       return err.message
     }
-    return 'Unexpected product error'
+    return 'Unexpected service error'
   }
 
   const fetchServices = useCallback(async () => {

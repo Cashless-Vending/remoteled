@@ -34,7 +34,6 @@ class DeviceUpdateRequest(BaseModel):
 
 
 class ServiceCreateRequest(BaseModel):
-    device_id: str
     type: str  # TRIGGER, FIXED, VARIABLE
     price_cents: int
     fixed_minutes: Optional[int] = None
@@ -89,7 +88,15 @@ def get_dashboard_stats(cursor: RealDictCursor = Depends(get_db)):
     """)
     last_week_orders = cursor.fetchone()['last_week']
     
-    # Revenue today
+    # Total revenue from all completed orders
+    cursor.execute("""
+        SELECT COALESCE(SUM(amount_cents), 0) as revenue
+        FROM orders
+        WHERE status IN ('PAID', 'RUNNING', 'DONE')
+    """)
+    total_revenue = cursor.fetchone()['revenue']
+    
+    # Revenue today for comparison
     cursor.execute("""
         SELECT COALESCE(SUM(amount_cents), 0) as revenue
         FROM orders
@@ -97,15 +104,6 @@ def get_dashboard_stats(cursor: RealDictCursor = Depends(get_db)):
           AND status IN ('PAID', 'RUNNING', 'DONE')
     """)
     revenue_today = cursor.fetchone()['revenue']
-    
-    # Revenue yesterday for comparison
-    cursor.execute("""
-        SELECT COALESCE(SUM(amount_cents), 0) as revenue
-        FROM orders
-        WHERE DATE(created_at) = CURRENT_DATE - INTERVAL '1 day'
-          AND status IN ('PAID', 'RUNNING', 'DONE')
-    """)
-    revenue_yesterday = cursor.fetchone()['revenue']
     
     # Success rate (last 100 orders)
     cursor.execute("""
@@ -142,8 +140,8 @@ def get_dashboard_stats(cursor: RealDictCursor = Depends(get_db)):
         "new_devices_this_month": new_devices,
         "active_orders": active_orders,
         "orders_change_percent": ((active_orders - last_week_orders) / last_week_orders * 100) if last_week_orders > 0 else 0,
-        "revenue_today_cents": revenue_today,
-        "revenue_change_percent": ((revenue_today - revenue_yesterday) / revenue_yesterday * 100) if revenue_yesterday > 0 else 0,
+        "revenue_today_cents": total_revenue,
+        "revenue_change_percent": ((revenue_today - total_revenue) / total_revenue * 100) if total_revenue > 0 else 0,
         "success_rate": round(success_rate, 1),
         "success_rate_change": round(success_rate - prev_success_rate, 1)
     }
@@ -196,12 +194,13 @@ def get_all_devices(cursor: RealDictCursor = Depends(get_db)):
             d.gpio_pin,
             d.status,
             d.created_at,
-            COUNT(DISTINCT s.id) as service_count,
-            COUNT(DISTINCT CASE WHEN s.active THEN s.id END) as active_service_count,
+            COUNT(DISTINCT ds.service_id) as service_count,
+            COUNT(DISTINCT CASE WHEN s.active THEN ds.service_id END) as active_service_count,
             COUNT(DISTINCT o.id) as total_orders,
             COUNT(DISTINCT CASE WHEN o.status = 'DONE' THEN o.id END) as completed_orders
         FROM devices d
-        LEFT JOIN services s ON d.id = s.device_id
+        LEFT JOIN device_services ds ON d.id = ds.device_id
+        LEFT JOIN services s ON ds.service_id = s.id
         LEFT JOIN orders o ON d.id = o.device_id
         GROUP BY d.id, d.label, d.model, d.location, d.gpio_pin, d.status, d.created_at
         ORDER BY d.created_at DESC
@@ -215,7 +214,7 @@ def get_recent_orders(
     limit: int = Query(50, ge=1, le=500),
     cursor: RealDictCursor = Depends(get_db)
 ):
-    """Get recent orders with device and product details"""
+    """Get recent orders with device and service details"""
     cursor.execute("""
         SELECT 
             o.id,
@@ -223,11 +222,14 @@ def get_recent_orders(
             o.authorized_minutes,
             o.status,
             o.created_at,
+            o.updated_at,
             d.label as device_label,
-            s.type as product_type
+            d.id as device_id,
+            s.type as service_type,
+            s.id as service_id
         FROM orders o
         JOIN devices d ON o.device_id = d.id
-        JOIN services s ON o.product_id = s.id
+        JOIN services s ON o.service_id = s.id
         ORDER BY o.created_at DESC
         LIMIT %s
     """, (limit,))
@@ -235,9 +237,128 @@ def get_recent_orders(
     return cursor.fetchall()
 
 
+@router.get("/orders/live")
+def get_live_orders(cursor: RealDictCursor = Depends(get_db)):
+    """
+    Get live orders for real-time dashboard display.
+    Returns orders that are currently active (CREATED, PAID, RUNNING)
+    and recently completed ones (last 5 minutes).
+    Perfect for demo purposes to show order flow in real-time.
+    """
+    cursor.execute("""
+        SELECT 
+            o.id,
+            o.amount_cents,
+            o.authorized_minutes,
+            o.status,
+            o.created_at,
+            o.updated_at,
+            d.label as device_label,
+            d.id as device_id,
+            d.location as device_location,
+            s.type as service_type,
+            s.id as service_id,
+            s.price_cents as service_price,
+            CASE 
+                WHEN o.status IN ('CREATED', 'PAID', 'RUNNING') THEN 'active'
+                WHEN o.status = 'DONE' AND o.updated_at > NOW() - INTERVAL '5 minutes' THEN 'recent_complete'
+                WHEN o.status = 'FAILED' AND o.updated_at > NOW() - INTERVAL '5 minutes' THEN 'recent_failed'
+                ELSE 'historical'
+            END as order_category
+        FROM orders o
+        JOIN devices d ON o.device_id = d.id
+        JOIN services s ON o.service_id = s.id
+        WHERE 
+            o.status IN ('CREATED', 'PAID', 'RUNNING')
+            OR (o.status IN ('DONE', 'FAILED') AND o.updated_at > NOW() - INTERVAL '5 minutes')
+        ORDER BY 
+            CASE o.status 
+                WHEN 'RUNNING' THEN 1 
+                WHEN 'PAID' THEN 2 
+                WHEN 'CREATED' THEN 3 
+                WHEN 'DONE' THEN 4 
+                WHEN 'FAILED' THEN 5 
+            END,
+            o.updated_at DESC
+        LIMIT 50
+    """)
+    
+    orders = cursor.fetchall()
+    
+    # Add summary stats
+    active_count = sum(1 for o in orders if o['status'] in ('CREATED', 'PAID', 'RUNNING'))
+    completed_count = sum(1 for o in orders if o['status'] == 'DONE')
+    failed_count = sum(1 for o in orders if o['status'] == 'FAILED')
+    
+    return {
+        "orders": orders,
+        "summary": {
+            "active": active_count,
+            "completed": completed_count,
+            "failed": failed_count,
+            "total": len(orders)
+        },
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
+@router.get("/orders/stats/realtime")
+def get_realtime_order_stats(cursor: RealDictCursor = Depends(get_db)):
+    """
+    Get real-time order statistics for dashboard widgets.
+    Useful for showing live counters and metrics.
+    """
+    cursor.execute("""
+        WITH recent_orders AS (
+            SELECT 
+                status,
+                amount_cents,
+                created_at,
+                updated_at
+            FROM orders
+            WHERE created_at > NOW() - INTERVAL '24 hours'
+        )
+        SELECT
+            COUNT(*) FILTER (WHERE status = 'CREATED') as pending_count,
+            COUNT(*) FILTER (WHERE status = 'PAID') as paid_count,
+            COUNT(*) FILTER (WHERE status = 'RUNNING') as running_count,
+            COUNT(*) FILTER (WHERE status = 'DONE') as completed_count,
+            COUNT(*) FILTER (WHERE status = 'FAILED') as failed_count,
+            COALESCE(SUM(amount_cents) FILTER (WHERE status IN ('PAID', 'RUNNING', 'DONE')), 0) as revenue_24h,
+            COUNT(*) as total_24h
+        FROM recent_orders
+    """)
+    
+    stats = cursor.fetchone()
+    
+    # Get orders from last hour for trend
+    cursor.execute("""
+        SELECT 
+            COUNT(*) as orders_last_hour,
+            COALESCE(SUM(amount_cents) FILTER (WHERE status IN ('PAID', 'RUNNING', 'DONE')), 0) as revenue_last_hour
+        FROM orders
+        WHERE created_at > NOW() - INTERVAL '1 hour'
+    """)
+    
+    hourly = cursor.fetchone()
+    
+    return {
+        "pending": stats['pending_count'],
+        "paid": stats['paid_count'],
+        "running": stats['running_count'],
+        "completed": stats['completed_count'],
+        "failed": stats['failed_count'],
+        "revenue_24h_cents": stats['revenue_24h'],
+        "total_orders_24h": stats['total_24h'],
+        "orders_last_hour": hourly['orders_last_hour'],
+        "revenue_last_hour_cents": hourly['revenue_last_hour'],
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
+
 @router.get("/services/all")
 def get_all_services(cursor: RealDictCursor = Depends(get_db)):
-    """Get all services/products with device info"""
+    """Get all global services with assigned device count"""
     cursor.execute("""
         SELECT 
             s.id,
@@ -247,11 +368,13 @@ def get_all_services(cursor: RealDictCursor = Depends(get_db)):
             s.minutes_per_25c,
             s.active,
             s.created_at,
-            d.label as device_label,
-            d.id as device_id
+            COUNT(DISTINCT ds.device_id) as assigned_device_count,
+            ARRAY_AGG(DISTINCT d.label) FILTER (WHERE d.label IS NOT NULL) as device_labels
         FROM services s
-        JOIN devices d ON s.device_id = d.id
-        ORDER BY d.label, s.price_cents
+        LEFT JOIN device_services ds ON s.id = ds.service_id
+        LEFT JOIN devices d ON ds.device_id = d.id
+        GROUP BY s.id, s.type, s.price_cents, s.fixed_minutes, s.minutes_per_25c, s.active, s.created_at
+        ORDER BY s.created_at DESC
     """)
     
     return cursor.fetchall()
@@ -435,6 +558,16 @@ def delete_device(
         if not device:
             raise HTTPException(status_code=404, detail="Device not found")
         
+        # Check for existing orders
+        cursor.execute("SELECT COUNT(*) as count FROM orders WHERE device_id = %s", (device_id,))
+        order_count = cursor.fetchone()['count']
+        
+        if order_count > 0:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Cannot delete device '{device['label']}': {order_count} order(s) are associated with this device. Please delete or reassign the orders first."
+            )
+        
         cursor.execute("DELETE FROM devices WHERE id = %s", (device_id,))
         cursor.connection.commit()
         
@@ -466,9 +599,7 @@ def create_service(
     current_user: dict = Depends(get_current_user),
     cursor: RealDictCursor = Depends(get_db)
 ):
-    """Create a new service/product"""
-    validate_uuid(service.device_id, "Device ID")
-    
+    """Create a new global service/product"""
     # Validate service type
     if service.type not in ['TRIGGER', 'FIXED', 'VARIABLE']:
         raise HTTPException(status_code=400, detail="Invalid service type")
@@ -489,11 +620,11 @@ def create_service(
     try:
         cursor.execute(
             """
-            INSERT INTO services (device_id, type, price_cents, fixed_minutes, minutes_per_25c, active)
-            VALUES (%s, %s::service_type, %s, %s, %s, %s)
-            RETURNING id, device_id, type, price_cents, fixed_minutes, minutes_per_25c, active, created_at
+            INSERT INTO services (type, price_cents, fixed_minutes, minutes_per_25c, active)
+            VALUES (%s::service_type, %s, %s, %s, %s)
+            RETURNING id, type, price_cents, fixed_minutes, minutes_per_25c, active, created_at
             """,
-            (service.device_id, service.type, service.price_cents, service.fixed_minutes, service.minutes_per_25c, service.active)
+            (service.type, service.price_cents, service.fixed_minutes, service.minutes_per_25c, service.active)
         )
         new_service = cursor.fetchone()
         cursor.connection.commit()
@@ -504,7 +635,7 @@ def create_service(
             action='CREATE_SERVICE',
             entity_type='service',
             entity_id=new_service['id'],
-            details=f"Created {service.type} service for device {service.device_id}",
+            details=f"Created {service.type} global service",
             admin_id=current_user['id']
         )
         
@@ -552,7 +683,7 @@ def update_service(
             UPDATE services 
             SET {', '.join(updates)}
             WHERE id = %s
-            RETURNING id, device_id, type, price_cents, fixed_minutes, minutes_per_25c, active, created_at
+            RETURNING id, type, price_cents, fixed_minutes, minutes_per_25c, active, created_at
             """,
             params
         )
@@ -598,13 +729,13 @@ def delete_service(
             raise HTTPException(status_code=404, detail="Service not found")
         
         # Check if any orders reference this service
-        cursor.execute("SELECT COUNT(*) as count FROM orders WHERE product_id = %s", (service_id,))
+        cursor.execute("SELECT COUNT(*) as count FROM orders WHERE service_id = %s", (service_id,))
         order_count = cursor.fetchone()['count']
         
         if order_count > 0:
             raise HTTPException(
                 status_code=400, 
-                detail=f"Cannot delete service: {order_count} order(s) still reference this product. Please delete or update those orders first."
+                detail=f"Cannot delete service: {order_count} order(s) still reference this service. Please delete or update those orders first."
             )
         
         cursor.execute("DELETE FROM services WHERE id = %s", (service_id,))
@@ -626,5 +757,128 @@ def delete_service(
     except Exception as e:
         cursor.connection.rollback()
         raise HTTPException(status_code=400, detail=f"Failed to delete service: {str(e)}")
+
+
+# ============================================================
+# DEVICE-SERVICE ASSIGNMENT ENDPOINTS
+# ============================================================
+
+@router.post("/devices/{device_id}/services/{service_id}")
+def assign_service_to_device(
+    device_id: str,
+    service_id: str,
+    current_user: dict = Depends(get_current_user),
+    cursor: RealDictCursor = Depends(get_db)
+):
+    """Assign a service to a device"""
+    validate_uuid(device_id, "Device ID")
+    validate_uuid(service_id, "Service ID")
+    
+    try:
+        # Check if device exists
+        cursor.execute("SELECT id FROM devices WHERE id = %s", (device_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Device not found")
+        
+        # Check if service exists
+        cursor.execute("SELECT id FROM services WHERE id = %s", (service_id,))
+        if not cursor.fetchone():
+            raise HTTPException(status_code=404, detail="Service not found")
+        
+        # Create the assignment (will fail if already exists due to unique constraint)
+        cursor.execute(
+            """
+            INSERT INTO device_services (device_id, service_id)
+            VALUES (%s, %s)
+            RETURNING id, device_id, service_id, created_at
+            """,
+            (device_id, service_id)
+        )
+        assignment = cursor.fetchone()
+        cursor.connection.commit()
+        
+        # Log the action
+        log_admin_action(
+            admin_email=current_user['email'],
+            action='ASSIGN_SERVICE',
+            entity_type='device_service',
+            entity_id=assignment['id'],
+            details=f"Assigned service {service_id} to device {device_id}",
+            admin_id=current_user['id']
+        )
+        
+        return assignment
+    except HTTPException:
+        raise
+    except Exception as e:
+        cursor.connection.rollback()
+        if 'unique_device_service' in str(e):
+            raise HTTPException(status_code=400, detail="Service is already assigned to this device")
+        raise HTTPException(status_code=400, detail=f"Failed to assign service: {str(e)}")
+
+
+@router.delete("/devices/{device_id}/services/{service_id}")
+def unassign_service_from_device(
+    device_id: str,
+    service_id: str,
+    current_user: dict = Depends(get_current_user),
+    cursor: RealDictCursor = Depends(get_db)
+):
+    """Remove a service assignment from a device"""
+    validate_uuid(device_id, "Device ID")
+    validate_uuid(service_id, "Service ID")
+    
+    try:
+        cursor.execute(
+            "DELETE FROM device_services WHERE device_id = %s AND service_id = %s RETURNING id",
+            (device_id, service_id)
+        )
+        deleted = cursor.fetchone()
+        
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Service assignment not found")
+        
+        cursor.connection.commit()
+        
+        # Log the action
+        log_admin_action(
+            admin_email=current_user['email'],
+            action='UNASSIGN_SERVICE',
+            entity_type='device_service',
+            entity_id=deleted['id'],
+            details=f"Unassigned service {service_id} from device {device_id}",
+            admin_id=current_user['id']
+        )
+        
+        return {"success": True, "message": "Service unassigned successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        cursor.connection.rollback()
+        raise HTTPException(status_code=400, detail=f"Failed to unassign service: {str(e)}")
+
+
+@router.get("/devices/{device_id}/services")
+def get_device_assigned_services(device_id: str, cursor: RealDictCursor = Depends(get_db)):
+    """Get all services assigned to a specific device"""
+    validate_uuid(device_id, "Device ID")
+    
+    cursor.execute("""
+        SELECT 
+            s.id,
+            s.type,
+            s.price_cents,
+            s.fixed_minutes,
+            s.minutes_per_25c,
+            s.active,
+            s.created_at,
+            ds.created_at as assigned_at
+        FROM services s
+        JOIN device_services ds ON s.id = ds.service_id
+        WHERE ds.device_id = %s
+        ORDER BY ds.created_at DESC
+    """, (device_id,))
+    
+    return cursor.fetchall()
 
 

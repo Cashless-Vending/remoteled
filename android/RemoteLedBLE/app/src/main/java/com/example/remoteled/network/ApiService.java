@@ -50,6 +50,10 @@ public interface ApiService {
         @Body TelemetryRequest request
     );
     
+    // LED Control Endpoints
+    @POST("led/control")
+    Call<Map<String, Object>> controlLED(@Body LEDControlRequest request);
+
     // Health Check
     @GET("health")
     Call<Map<String, Object>> healthCheck();

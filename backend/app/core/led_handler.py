@@ -54,13 +54,14 @@ async def find_pi_device(force_scan=False):
     return None
 
 
-async def trigger_led(color: str, duration: int):
+async def trigger_led_blink(color: str, times: int = 5, interval: float = 0.5):
     """
-    Send BLE command to Pi to trigger LED
+    Send BLE command to Pi to BLINK LED (for processing state)
 
     Args:
         color: LED color (green, red, yellow)
-        duration: How long to keep LED on (seconds)
+        times: Number of blinks
+        interval: Time between blinks in seconds
 
     Returns:
         bool: True if successful, False otherwise
@@ -68,61 +69,155 @@ async def trigger_led(color: str, duration: int):
     global _cached_pi_address
 
     print(f"\n{'='*60}")
-    print(f"[BLE] 💡 TRIGGERING LED: color={color.upper()}, duration={duration}s")
+    print(f"[BLE] ⚡ BLINKING LED: color={color.upper()}, times={times}, interval={interval}s")
     print(f"{'='*60}")
 
     try:
         # Try to find device (uses cache if available)
-        print("[BLE] 🔍 Step 1: Looking for Pi device via BLE scan...")
+        print("[BLE] 🔍 Looking for Pi device...")
         device_address = await find_pi_device()
         if not device_address:
-            print("[BLE] ❌ ERROR: Pi not found! (Expected if Pi is not powered on)")
-            print("[BLE] 💡 This is normal for testing without hardware")
+            print("[BLE] ❌ Pi not found!")
             return False
 
-        print(f"[BLE] ✓ Step 2: Found Pi at {device_address}")
+        print(f"[BLE] ✓ Found Pi at {device_address}")
+        print(f"[BLE] 🔌 Connecting to Pi...")
 
-        # Keep connection open for entire duration (turn ON, wait, turn OFF)
-        print(f"[BLE] 🔌 Step 3: Connecting to Pi...")
         async with BleakClient(device_address, timeout=10.0) as client:
-            # Turn LED ON
-            payload_on = {
-                "command": "ON",
+            # Send BLINK command
+            payload = {
+                "command": "BLINK",
                 "color": color.lower(),
+                "times": times,
+                "interval": interval,
                 "bleKey": settings.BLE_KEY
             }
-            print(f"[BLE] 📤 Step 4: Sending ON command: {payload_on}")
-            await client.write_gatt_char(settings.BLE_CHAR_UUID, json.dumps(payload_on).encode('utf-8'))
-            print(f"[BLE] ✅ {color.upper()} LED turned ON")
-
-            # Wait while keeping connection open
-            print(f"[BLE] ⏳ Step 5: Waiting {duration}s...")
-            await asyncio.sleep(duration)
-
-            # Turn LED OFF
-            payload_off = {
-                "command": "OFF",
-                "color": color.lower(),
-                "bleKey": settings.BLE_KEY
-            }
-            print(f"[BLE] 📤 Step 6: Sending OFF command: {payload_off}")
-            await client.write_gatt_char(settings.BLE_CHAR_UUID, json.dumps(payload_off).encode('utf-8'))
-            print(f"[BLE] ✅ {color.upper()} LED turned OFF")
-            print(f"[BLE] 🎉 LED trigger completed successfully!")
-
+            print(f"[BLE] 📤 Sending BLINK command: {payload}")
+            await client.write_gatt_char(settings.BLE_CHAR_UUID, json.dumps(payload).encode('utf-8'))
+            print(f"[BLE] ✅ {color.upper()} LED BLINKING (processing)")
             return True
 
     except Exception as e:
         print(f"[BLE] ❌ ERROR: {e}")
-        print(f"[BLE] 💡 This is expected if Pi is not powered on or out of range")
-        # If cached address failed, clear cache and retry once
         if _cached_pi_address:
-            print("[BLE] 🔄 Cached address failed, clearing cache...")
             _cached_pi_address = None
-        import traceback
-        print("[BLE] 📋 Full error trace:")
-        traceback.print_exc()
         return False
+
+
+async def trigger_led_on(color: str):
+    """
+    Send BLE command to Pi to turn LED ON solid (for running state)
+
+    Args:
+        color: LED color (green, red, yellow)
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    global _cached_pi_address
+
+    print(f"\n{'='*60}")
+    print(f"[BLE] 💡 LED SOLID ON: color={color.upper()}")
+    print(f"{'='*60}")
+
+    try:
+        print("[BLE] 🔍 Looking for Pi device...")
+        device_address = await find_pi_device()
+        if not device_address:
+            print("[BLE] ❌ Pi not found!")
+            return False
+
+        print(f"[BLE] ✓ Found Pi at {device_address}")
+        print(f"[BLE] 🔌 Connecting to Pi...")
+
+        async with BleakClient(device_address, timeout=10.0) as client:
+            # Send ON command
+            payload = {
+                "command": "ON",
+                "color": color.lower(),
+                "bleKey": settings.BLE_KEY
+            }
+            print(f"[BLE] 📤 Sending ON command: {payload}")
+            await client.write_gatt_char(settings.BLE_CHAR_UUID, json.dumps(payload).encode('utf-8'))
+            print(f"[BLE] ✅ {color.upper()} LED SOLID ON (device running)")
+            return True
+
+    except Exception as e:
+        print(f"[BLE] ❌ ERROR: {e}")
+        if _cached_pi_address:
+            _cached_pi_address = None
+        return False
+
+
+async def trigger_led_off():
+    """
+    Send BLE command to Pi to turn OFF all LEDs (for stopped state)
+
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    global _cached_pi_address
+
+    print(f"\n{'='*60}")
+    print(f"[BLE] 🔴 LED OFF (device stopped)")
+    print(f"{'='*60}")
+
+    try:
+        print("[BLE] 🔍 Looking for Pi device...")
+        device_address = await find_pi_device()
+        if not device_address:
+            print("[BLE] ❌ Pi not found!")
+            return False
+
+        print(f"[BLE] ✓ Found Pi at {device_address}")
+        print(f"[BLE] 🔌 Connecting to Pi...")
+
+        async with BleakClient(device_address, timeout=10.0) as client:
+            # Send OFF command
+            payload = {
+                "command": "OFF",
+                "bleKey": settings.BLE_KEY
+            }
+            print(f"[BLE] 📤 Sending OFF command: {payload}")
+            await client.write_gatt_char(settings.BLE_CHAR_UUID, json.dumps(payload).encode('utf-8'))
+            print(f"[BLE] ✅ All LEDs turned OFF")
+            return True
+
+    except Exception as e:
+        print(f"[BLE] ❌ ERROR: {e}")
+        if _cached_pi_address:
+            _cached_pi_address = None
+        return False
+
+
+# Legacy function for backward compatibility
+async def trigger_led(color: str, duration: int):
+    """
+    Legacy LED trigger function (deprecated - use specific functions instead)
+    """
+    return await trigger_led_blink(color, times=5, interval=0.5)
+
+
+def get_led_color_for_service_type(service_type: str) -> str:
+    """
+    Map service type to LED color
+
+    Args:
+        service_type: Service type (FIXED, VARIABLE, TRIGGER)
+
+    Returns:
+        str: LED color (green, yellow, red)
+    """
+    # Service Type to LED Color Mapping:
+    # FIXED (e.g., Washer - fixed 40min cycle) -> GREEN
+    # VARIABLE (e.g., Dryer - variable time) -> YELLOW
+    # TRIGGER (e.g., Dispenser/Meter - instant) -> RED
+    service_to_color = {
+        "FIXED": "green",
+        "VARIABLE": "yellow",
+        "TRIGGER": "red"
+    }
+    return service_to_color.get(service_type.upper(), "green")
 
 
 def get_led_color_for_status(status: str) -> str:

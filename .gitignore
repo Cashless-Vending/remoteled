@@ -27,3 +27,6 @@ android/RemoteLedBLE/app/build/
 
 # OS thumbnails
 Thumbs.db
+
+# Firebase
+firebase-adminsdk-*.jsonbackend/.env

@@ -28,10 +28,10 @@ export const ProductsTab = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Product Catalog</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Service Catalog</h2>
           <p className="text-gray-600 mt-1">Manage services and pricing for your devices</p>
         </div>
-        <Button variant="primary">+ Add Product</Button>
+        <Button variant="primary">+ Add Service</Button>
       </div>
 
       {/* Products Table */}
@@ -39,7 +39,7 @@ export const ProductsTab = () => {
         {products.length === 0 ? (
           <div className="p-12 text-center">
             <p className="text-gray-400 text-lg">No products found</p>
-            <p className="text-gray-500 text-sm mt-2">Add your first product to get started</p>
+            <p className="text-gray-500 text-sm mt-2">Add your first service to get started</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

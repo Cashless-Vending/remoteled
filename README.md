@@ -131,12 +131,97 @@ If your phone runs an older Android version, lower `minSdk` in `android/RemoteLe
 - Prefer Node: `sudo systemctl enable --now remoteled-node && sudo systemctl disable --now remoteled-python`
 - Prefer Python: `sudo systemctl enable --now remoteled-python && sudo systemctl disable --now remoteled-node`
 
+### Rapid Pi + Backend test loop
+For the exact workflow documented in `~/Downloads/pi_ble_qr_setup.txt`, use the following checklist whenever you need to validate the entire BLE/QR flow quickly:
+
+1. **Start the backend on your Mac**
+   - From the repo root: `cd backend && uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 9999`
+   - Keep it running and confirm `http://192.168.1.158:9999/health` responds.
+
+2. **Launch the Pi BLE peripheral**
+   - On the Pi: `cd ~/Documents/remoteled/pi/python && ./start.sh`
+   - The script reads `/usr/local/remoteled/device_id`, activates `venv/`, and runs `code.py`.
+   - Watch the terminal for `[BLE Debug] Detail URL ready for kiosk: http://192.168.1.158:9999/detail?...` and “Advertisement registered”.
+
+3. **Refresh the kiosk view**
+   - On the Pi desktop press `F5` in Chromium (already pointed at `http://localhost`), or run `bash ~/Documents/remoteled/pi/kiosk.sh` to relaunch kiosk mode.
+
+4. **Scan the QR from Android**
+   - Once the QR is visible, scan it with the Android app. If the kiosk ever sticks on `CONNECTED!`, press `Ctrl+C` in the Pi terminal, rerun `./start.sh`, and refresh Chromium again.
+
 ## Quick Start (Android)
 - Build from source: open `android/RemoteLedBLE` in Android Studio and run on a device (Android 14+ as configured).
 - Or install the included debug APK: `remoteled.apk` (for local testing only; rebuild your own for distribution).
 - Launch the app and scan the QR on the Pi. The app also handles deep links of the form `remoteled://connect/...` if opened directly.
 
 Emulator note: The Android emulator does not support Bluetooth LE and the app declares BLE as a required feature in the manifest. Installation and BLE will fail on the emulator—use a real device.
+
+### Manual APK Build & Installation (macOS)
+
+For building and installing the APK manually on a physical Android device using macOS:
+
+**1. Install Java (OpenJDK 17)**
+```bash
+brew install openjdk@17
+```
+
+**2. Add Java to your shell config**
+
+Add to `~/.zshrc` (or `~/.bashrc` if using bash):
+```bash
+export PATH="/opt/homebrew/opt/openjdk@17/bin:$PATH"
+export JAVA_HOME="/opt/homebrew/opt/openjdk@17"
+```
+
+Reload your shell:
+```bash
+source ~/.zshrc
+```
+
+**3. Update API endpoint**
+
+Edit `android/RemoteLedBLE/app/build.gradle.kts` and set your Mac's local IP:
+```kotlin
+buildConfigField("String", "API_BASE_URL", "\"http://YOUR_MAC_IP:9999\"")
+```
+
+Find your Mac IP: `ipconfig getifaddr en0`
+
+**4. Build the APK**
+```bash
+cd android/RemoteLedBLE
+chmod +x gradlew
+./gradlew assembleDebug
+```
+
+APK location: `app/build/outputs/apk/debug/app-debug.apk`
+
+**5. Install MacDroid**
+
+Download from [macdroid.app](https://www.macdroid.app/) to enable file transfers between Mac and Android.
+
+**6. Transfer APK to phone**
+
+Connect phone via USB, enable USB file transfer mode, then:
+```bash
+sudo cp app/build/outputs/apk/debug/app-debug.apk /Volumes/MacDroid/sdcard/Download/
+```
+
+**7. Install on phone**
+
+On your Android device:
+- Open Files app → Downloads
+- Tap `app-debug.apk`
+- Allow installation from unknown sources if prompted
+- Install and launch
+
+**8. Start backend server**
+```bash
+cd backend
+uv run --no-project uvicorn app.main:app --reload --host 0.0.0.0 --port 9999
+```
+
+Your phone can now communicate with the backend at `http://YOUR_MAC_IP:9999`.
 
 ## Using It
 - Commands written to the BLE characteristic are JSON:

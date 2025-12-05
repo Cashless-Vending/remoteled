@@ -30,7 +30,7 @@ const getApiBaseUrl = (): string => {
   
   // Development: direct to backend
   if (import.meta.env.DEV) {
-    return 'http://localhost:8000';
+    return 'http://localhost:9999';
   }
   
   // Production: use nginx proxy
