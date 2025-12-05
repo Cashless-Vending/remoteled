@@ -148,16 +148,11 @@ fi
 echo ""
 
 # =============================================================================
-# STEP 5: Check backend connectivity
+# STEP 5: Set API Base URL (for QR code generation only - Pi has no network)
 # =============================================================================
-echo -e "${YELLOW}[5/7] Checking macOS backend...${NC}"
-if curl -s -m 3 "http://${MACOS_SERVER_IP}:${BACKEND_PORT}/health" > /dev/null 2>&1; then
-    echo -e "${GREEN}✓ Backend API reachable at http://${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
-else
-    echo -e "${RED}✗ Cannot reach backend at http://${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
-    echo -e "${YELLOW}  Make sure the macOS server is running (use start_server_macos.sh)${NC}"
-    exit 1
-fi
+echo -e "${YELLOW}[5/7] Configuring API Base URL (for QR code only)...${NC}"
+echo -e "${GREEN}✓ QR codes will point to: http://${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
+echo -e "${YELLOW}  Note: Pi operates BLE-only. Android app handles all network communication.${NC}"
 echo ""
 
 # =============================================================================
