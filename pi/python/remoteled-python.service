@@ -14,7 +14,7 @@ User=USERNAME_PLACEHOLDER
 
 # Machine Configuration
 Environment="MACHINE_ID=MACHINE_ID_PLACEHOLDER"
-Environment="API_BASE_URL=https://your-api.com"
+Environment="API_BASE_URL=http://212.1.213.215:9999"
 
 [Install]
 WantedBy=multi-user.target
