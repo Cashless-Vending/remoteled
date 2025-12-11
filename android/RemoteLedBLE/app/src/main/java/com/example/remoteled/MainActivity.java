@@ -27,6 +27,7 @@ import androidx.core.content.ContextCompat;
 
 import com.example.remoteled.ble.BLEConnectionManager;
 import com.example.remoteled.databinding.ActivityMainBinding;
+import com.example.remoteled.network.RetrofitClient;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 
 import android.widget.Button;
@@ -290,6 +291,12 @@ public class MainActivity extends AppCompatActivity {
                     if (qpDeviceId != null && !qpDeviceId.isEmpty()) {
                         scannedDeviceId = qpDeviceId;
                     }
+
+                    // Dynamically set API base URL from QR code
+                    int port = data.getPort();
+                    String apiBaseUrl = data.getScheme() + "://" + data.getHost() + (port != -1 ? ":" + port : "");
+                    RetrofitClient.setBaseUrl(apiBaseUrl + "/");
+                    Log.d(TAG, "Set API Base URL from QR: " + apiBaseUrl);
 
                     Log.d(TAG, "Parsed HTTP detail URL - MAC: " + macAddress + ", Service: " + serviceUUID + ", Char: "
                             + characteristicUUID + ", Key: " + bleKey + ", MachineId: " + scannedDeviceId);
