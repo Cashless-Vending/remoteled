@@ -28,9 +28,9 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 public class RunningActivity extends AppCompatActivity {
-    
+
     private static final String TAG = "RunningActivity";
-    
+
     // UI Components
     private TextView countdownTime;
     private TextView detailsProduct;
@@ -40,7 +40,7 @@ public class RunningActivity extends AppCompatActivity {
     private View runningLed;
     private TextView runningLedText;
     private Button viewHistoryButton;
-    
+
     // Data
     private String deviceId;
     private String deviceLabel;
@@ -48,7 +48,7 @@ public class RunningActivity extends AppCompatActivity {
     private String serviceType;
     private int authorizedMinutes;
     private int amountCents;
-    
+
     // Timer
     private CountDownTimer countDownTimer;
     private long remainingTimeMillis;
@@ -56,18 +56,18 @@ public class RunningActivity extends AppCompatActivity {
 
     // Status polling
     private Handler statusPollHandler = new Handler();
-    private static final int POLL_INTERVAL_MS = 1500;  // 1.5 seconds
+    private static final int POLL_INTERVAL_MS = 1500; // 1.5 seconds
     private boolean isPolling = false;
     private boolean isGreenLEDOn = false;
-    
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_running);
-        
+
         // Get data
         getIntentData();
-        
+
         // Initialize UI
         initViews();
         setupListeners();
@@ -82,7 +82,7 @@ public class RunningActivity extends AppCompatActivity {
         // Start polling order status
         startStatusPolling();
     }
-    
+
     private void getIntentData() {
         Intent intent = getIntent();
         deviceId = intent.getStringExtra("DEVICE_ID");
@@ -97,7 +97,7 @@ public class RunningActivity extends AppCompatActivity {
         Log.d(TAG, "Running screen for order: " + orderId);
         Log.d(TAG, "Duration: " + authorizedMinutes + " minutes");
     }
-    
+
     private void initViews() {
         countdownTime = findViewById(R.id.countdown_time);
         detailsProduct = findViewById(R.id.details_product);
@@ -108,61 +108,63 @@ public class RunningActivity extends AppCompatActivity {
         runningLedText = findViewById(R.id.running_led_text);
         viewHistoryButton = findViewById(R.id.view_history_button);
     }
-    
+
     private void setupListeners() {
-        viewHistoryButton.setOnClickListener(v -> 
-            Toast.makeText(this, "Order history feature coming soon", Toast.LENGTH_SHORT).show()
-        );
+        viewHistoryButton.setOnClickListener(
+                v -> Toast.makeText(this, "Order history feature coming soon", Toast.LENGTH_SHORT).show());
     }
-    
+
     private void displayDetails() {
         // Product name
         String productName = getProductName(serviceType);
         detailsProduct.setText(productName);
-        
+
         // Started at time
         SimpleDateFormat timeFormat = new SimpleDateFormat("h:mm a", Locale.getDefault());
         detailsStartedAt.setText(timeFormat.format(startTime));
-        
+
         // Estimated end time
         Calendar endCal = Calendar.getInstance();
         endCal.setTime(startTime);
         endCal.add(Calendar.MINUTE, authorizedMinutes);
         detailsEstimatedEnd.setText(timeFormat.format(endCal.getTime()));
-        
+
         // Order ID (show first 12 chars)
-        String shortOrderId = orderId.length() > 12 ? 
-            "ord_" + orderId.substring(0, 12) : orderId;
+        String shortOrderId = orderId.length() > 12 ? "ord_" + orderId.substring(0, 12) : orderId;
         detailsOrderId.setText(shortOrderId);
-        
+
         // LED Status based on service type
         setLEDStatus();
     }
-    
+
     private void setLEDStatus() {
         // All service types use GREEN LED when running (payment was successful)
         int ledDrawable = R.drawable.led_circle_green;
         String ledText = "🟢 Service Running";
-        
+
         runningLed.setBackgroundResource(ledDrawable);
         runningLedText.setText(ledText);
     }
-    
+
     private String getProductName(String type) {
         switch (type) {
-            case "TRIGGER": return "Quick Dispense";
-            case "FIXED": return "Standard Cycle";
-            case "VARIABLE": return "Extended Time";
-            default: return "Service";
+            case "TRIGGER":
+                return "Quick Dispense";
+            case "FIXED":
+                return "Standard Cycle";
+            case "VARIABLE":
+                return "Extended Time";
+            default:
+                return "Service";
         }
     }
-    
+
     private void startCountdown() {
         if (serviceType.equals("TRIGGER")) {
             // TRIGGER has no duration - dispense cycle
             Log.d(TAG, "TRIGGER service - 15 second countdown then complete");
             countdownTime.setText("00:15");
-            
+
             // Countdown for TRIGGER (15 seconds for dispense cycle)
             countDownTimer = new CountDownTimer(15000, 1000) {
                 @Override
@@ -170,13 +172,13 @@ public class RunningActivity extends AppCompatActivity {
                     long seconds = (millisUntilFinished / 1000) + 1;
                     countdownTime.setText(String.format(Locale.getDefault(), "00:%02d", seconds));
                 }
-                
+
                 @Override
                 public void onFinish() {
                     countdownTime.setText("00:00");
                     Log.d(TAG, "TRIGGER countdown finished, sending DONE telemetry");
                     sendTelemetry("DONE");
-                    
+
                     // For TRIGGER, turn off LED and navigate after short delay
                     new Handler().postDelayed(() -> {
                         stopGreenLED();
@@ -189,17 +191,16 @@ public class RunningActivity extends AppCompatActivity {
             return;
         }
 
-        // FOR TESTING: Use 30 seconds instead of actual authorized minutes
-        // TODO: Change back to: remainingTimeMillis = authorizedMinutes * 60 * 1000;
-        remainingTimeMillis = 30 * 1000;  // 30 seconds for testing
-        
+        // Demo mode: 30 second countdown for all FIXED/VARIABLE services
+        remainingTimeMillis = 30 * 1000L; // 30 seconds for demo
+
         countDownTimer = new CountDownTimer(remainingTimeMillis, 1000) {
             @Override
             public void onTick(long millisUntilFinished) {
                 remainingTimeMillis = millisUntilFinished;
                 updateCountdownDisplay(millisUntilFinished);
             }
-            
+
             @Override
             public void onFinish() {
                 countdownTime.setText("00:00");
@@ -208,7 +209,7 @@ public class RunningActivity extends AppCompatActivity {
                 // Send DONE telemetry - server will update status to DONE
                 // Polling will detect the status change and turn off GREEN LED
                 sendTelemetry("DONE");
-                
+
                 // Navigate to success screen after short delay
                 new Handler().postDelayed(() -> {
                     stopGreenLED();
@@ -219,15 +220,15 @@ public class RunningActivity extends AppCompatActivity {
             }
         }.start();
     }
-    
+
     private void updateCountdownDisplay(long millisUntilFinished) {
         long minutes = (millisUntilFinished / 1000) / 60;
         long seconds = (millisUntilFinished / 1000) % 60;
-        
+
         String timeString = String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds);
         countdownTime.setText(timeString);
     }
-    
+
     private void sendTelemetry(String event) {
         Log.d(TAG, "Sending telemetry: " + event + " for order: " + orderId);
 
@@ -239,10 +240,11 @@ public class RunningActivity extends AppCompatActivity {
                 .enqueue(new Callback<Map<String, Object>>() {
                     @Override
                     public void onResponse(Call<Map<String, Object>> call,
-                                         Response<Map<String, Object>> response) {
+                            Response<Map<String, Object>> response) {
                         if (response.isSuccessful()) {
                             Log.d(TAG, "Telemetry " + event + " sent successfully");
-                            // After STARTED telemetry succeeds, start polling to check when status becomes RUNNING
+                            // After STARTED telemetry succeeds, start polling to check when status becomes
+                            // RUNNING
                             if (event.equals("STARTED")) {
                                 Log.d(TAG, "STARTED telemetry sent, server should update to RUNNING soon");
                             }
@@ -257,7 +259,7 @@ public class RunningActivity extends AppCompatActivity {
                     }
                 });
     }
-    
+
     private void navigateToQRScreen() {
         if (countDownTimer != null) {
             countDownTimer.cancel();
@@ -272,7 +274,7 @@ public class RunningActivity extends AppCompatActivity {
         startActivity(intent);
         finish();
     }
-    
+
     private void navigateToSuccess() {
         if (countDownTimer != null) {
             countDownTimer.cancel();
@@ -287,11 +289,11 @@ public class RunningActivity extends AppCompatActivity {
         intent.putExtra("AUTHORIZED_MINUTES", authorizedMinutes);
         intent.putExtra("AMOUNT_CENTS", amountCents);
         intent.putExtra("STARTED_AT", startTime.getTime());
-        
+
         startActivity(intent);
         finish();
     }
-    
+
     private void startGreenLED() {
         BLEConnectionManager.getInstance().sendOnCommand("green");
         Log.d(TAG, "Started GREEN LED");
@@ -397,7 +399,3 @@ public class RunningActivity extends AppCompatActivity {
         }
     }
 }
-
-
-
-
