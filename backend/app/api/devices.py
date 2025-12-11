@@ -47,11 +47,12 @@ def get_device_services(device_id: str, cursor: RealDictCursor = Depends(get_db)
     # Get active services assigned to this device
     cursor.execute(
         """
-        SELECT id, type, price_cents, fixed_minutes, 
-               minutes_per_25c, active, created_at
-        FROM services
-        WHERE device_id = %s AND active = true
-        ORDER BY price_cents ASC
+        SELECT s.id, s.type, s.price_cents, s.fixed_minutes, 
+               s.minutes_per_25c, s.active, s.created_at
+        FROM services s
+        JOIN device_services ds ON s.id = ds.service_id
+        WHERE ds.device_id = %s AND s.active = true
+        ORDER BY s.price_cents ASC
         """,
         (device_id,)
     )
@@ -83,11 +84,12 @@ def get_device_with_services(device_id: str, cursor: RealDictCursor = Depends(ge
     # Get active services assigned to this device
     cursor.execute(
         """
-        SELECT id, type, price_cents, fixed_minutes, 
-               minutes_per_25c, active, created_at
-        FROM services
-        WHERE device_id = %s AND active = true
-        ORDER BY price_cents ASC
+        SELECT s.id, s.type, s.price_cents, s.fixed_minutes, 
+               s.minutes_per_25c, s.active, s.created_at
+        FROM services s
+        JOIN device_services ds ON s.id = ds.service_id
+        WHERE ds.device_id = %s AND s.active = true
+        ORDER BY s.price_cents ASC
         """,
         (device_id,)
     )
