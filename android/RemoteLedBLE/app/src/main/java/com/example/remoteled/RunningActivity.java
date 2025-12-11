@@ -191,8 +191,9 @@ public class RunningActivity extends AppCompatActivity {
             return;
         }
 
-        // Demo mode: 30 second countdown for all FIXED/VARIABLE services
-        remainingTimeMillis = 30 * 1000L; // 30 seconds for demo
+        // Use actual authorized duration (stored as seconds for demo)
+        // authorizedMinutes contains the duration in seconds (15, 30, or 60)
+        remainingTimeMillis = authorizedMinutes * 1000L;
 
         countDownTimer = new CountDownTimer(remainingTimeMillis, 1000) {
             @Override
