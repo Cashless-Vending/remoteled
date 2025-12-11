@@ -2,6 +2,7 @@ package com.example.remoteled;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.os.Handler;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -11,8 +12,11 @@ import android.widget.Toast;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import com.example.remoteled.ble.BLEConnectionManager;
+import com.example.remoteled.models.Device;
 import com.example.remoteled.models.Order;
 import com.example.remoteled.models.requests.CreateOrderRequest;
+import com.example.remoteled.models.requests.LEDControlRequest;
 import com.example.remoteled.models.StripePaymentTriggerResponse;
 import com.example.remoteled.models.requests.StripePaymentTriggerRequest;
 import com.example.remoteled.network.RetrofitClient;
@@ -69,7 +73,7 @@ public class PaymentActivity extends AppCompatActivity {
         serviceType = intent.getStringExtra("SERVICE_TYPE");
         priceCents = intent.getIntExtra("SERVICE_PRICE_CENTS", 0);
         fixedMinutes = intent.getIntExtra("SERVICE_FIXED_MINUTES", 0);
-        
+
         Log.d(TAG, "Payment screen opened for device: " + deviceLabel);
         Log.d(TAG, "Service: " + serviceType + " - $" + (priceCents / 100.0));
     }
@@ -139,11 +143,11 @@ public class PaymentActivity extends AppCompatActivity {
     
     private void createOrder() {
         showLoading();
-        
+
         CreateOrderRequest request = new CreateOrderRequest(deviceId, serviceId, priceCents);
-        
+
         Log.d(TAG, "Creating order...");
-        
+
         RetrofitClient.getInstance()
                 .getApiService()
                 .createOrder(request)
@@ -181,7 +185,10 @@ public class PaymentActivity extends AppCompatActivity {
             return;
         }
 
-        boolean skipLed = BuildConfig.DEMO_MODE || BuildConfig.DEBUG;
+        // Start YELLOW LED (blinking during payment processing)
+        startYellowLED();
+
+        boolean skipLed = false;  // Enable LED triggering
 
         StripePaymentTriggerRequest request = new StripePaymentTriggerRequest(
                 priceCents,
@@ -208,10 +215,16 @@ public class PaymentActivity extends AppCompatActivity {
                             StripePaymentTriggerResponse result = response.body();
                             Log.d(TAG, "Stripe payment success. PaymentIntent: " + result.getPaymentIntentId());
                             Log.d(TAG, "Payment status: " + result.getPaymentStatus());
+
+                            // Stop YELLOW LED on payment success
+                            stopYellowLED();
+
                             createdOrder.setStatus("PAID");
                             navigateToProcessing();
                         } else {
                             Log.e(TAG, "Stripe payment API error: " + response.code());
+                            // Stop YELLOW LED on payment failure
+                            stopYellowLED();
                             showError("Stripe payment failed");
                         }
                     }
@@ -220,6 +233,8 @@ public class PaymentActivity extends AppCompatActivity {
                     public void onFailure(Call<StripePaymentTriggerResponse> call, Throwable t) {
                         Log.e(TAG, "Stripe payment network error: " + t.getMessage(), t);
                         hideLoading();
+                        // Stop YELLOW LED on network error
+                        stopYellowLED();
                         showError("Network error during Stripe payment");
                     }
                 });
@@ -227,7 +242,7 @@ public class PaymentActivity extends AppCompatActivity {
     
     private void navigateToProcessing() {
         Intent intent = new Intent(this, ProcessingActivity.class);
-        
+
         // Pass all data forward
         intent.putExtra("DEVICE_ID", deviceId);
         intent.putExtra("DEVICE_LABEL", deviceLabel);
@@ -236,7 +251,7 @@ public class PaymentActivity extends AppCompatActivity {
         intent.putExtra("SERVICE_TYPE", serviceType);
         intent.putExtra("AUTHORIZED_MINUTES", createdOrder.getAuthorizedMinutes());
         intent.putExtra("AMOUNT_CENTS", priceCents);
-        
+
         startActivity(intent);
         finish();  // Don't allow back to payment screen
     }
@@ -253,6 +268,61 @@ public class PaymentActivity extends AppCompatActivity {
         payButton.setAlpha(1.0f);
     }
     
+    private void startYellowLED() {
+        BLEConnectionManager.getInstance().sendBlinkCommand("yellow");
+        Log.d(TAG, "YELLOW LED BLINKING (payment processing)");
+    }
+
+    private void stopYellowLED() {
+        Log.d(TAG, "Stopping all LEDs and querying device status...");
+
+        // Step 1: Stop all LEDs
+        BLEConnectionManager.getInstance().sendOffCommand();
+
+        // Step 2: Wait 0.5s for GPIO to react, then query device status
+        new Handler().postDelayed(() -> {
+            queryDeviceStatusAndControlLED();
+        }, 500);
+    }
+
+    private void queryDeviceStatusAndControlLED() {
+        Log.d(TAG, "Querying device status from backend...");
+
+        RetrofitClient.getInstance()
+                .getApiService()
+                .getDevice(deviceId)
+                .enqueue(new Callback<Device>() {
+                    @Override
+                    public void onResponse(Call<Device> call, Response<Device> response) {
+                        if (response.isSuccessful() && response.body() != null) {
+                            Device device = response.body();
+                            String status = device.getStatus();
+                            Log.d(TAG, "Device status from backend: " + status);
+
+                            // Control GREEN LED based on status
+                            if (status != null && (status.equalsIgnoreCase("ON") ||
+                                                   status.equalsIgnoreCase("RUNNING"))) {
+                                // Turn on GREEN LED
+                                new Handler().postDelayed(() -> {
+                                    BLEConnectionManager.getInstance().sendOnCommand("green");
+                                    Log.d(TAG, "GREEN LED ON (device is running)");
+                                }, 500);
+                            } else {
+                                // Status is OFF/IDLE - keep LEDs off
+                                Log.d(TAG, "Device status is " + status + " - LEDs remain off");
+                            }
+                        } else {
+                            Log.e(TAG, "Failed to get device status: " + response.code());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<Device> call, Throwable t) {
+                        Log.e(TAG, "Network error querying device status: " + t.getMessage(), t);
+                    }
+                });
+    }
+
     private void showError(String message) {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }

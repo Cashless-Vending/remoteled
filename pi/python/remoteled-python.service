@@ -2,8 +2,6 @@
 Description=Start Remote LED Python Script on Boot
 After=network.target
 Wants=network-online.target
-Conflicts=remoteled-node.service
-
 
 [Service]
 ExecStart=/usr/local/remoteled/python/start.sh
@@ -13,6 +11,10 @@ StandardError=inherit
 Restart=always
 RestartSec=5
 User=USERNAME_PLACEHOLDER
+
+# Machine Configuration
+Environment="MACHINE_ID=MACHINE_ID_PLACEHOLDER"
+Environment="API_BASE_URL=http://212.1.213.215:9999"
 
 [Install]
 WantedBy=multi-user.target

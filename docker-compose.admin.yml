@@ -43,8 +43,12 @@ services:
       API_PORT: 8000
       API_DEBUG: ${DEBUG:-false}
       
-      # CORS settings
-      CORS_ORIGINS: http://localhost,http://localhost:80,http://frontend,*
+      # Payment settings (optional)
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-}
+      
+      # CORS settings - allow all for development
+      CORS_ORIGINS: "*"
     ports:
       - "8000:8000"
     networks:

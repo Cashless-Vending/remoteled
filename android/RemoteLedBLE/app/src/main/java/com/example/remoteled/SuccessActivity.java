@@ -2,10 +2,13 @@ package com.example.remoteled;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.Button;
 import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
+
+import com.example.remoteled.ble.BLEConnectionManager;
 
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -116,6 +119,10 @@ public class SuccessActivity extends AppCompatActivity {
     }
     
     private void finishAndGoHome() {
+        // Send OFF command to Pi to reset LED to RED and show QR again
+        Log.d(TAG, "Sending OFF command to Pi to reset for next user");
+        BLEConnectionManager.getInstance().sendOffCommand();
+        
         // Close all activities and return to home (QR scanner)
         Intent intent = new Intent(this, QRCodeScannerActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);

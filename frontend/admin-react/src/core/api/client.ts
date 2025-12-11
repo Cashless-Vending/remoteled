@@ -27,12 +27,12 @@ const getApiBaseUrl = (): string => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
-  
+
   // Development: direct to backend
   if (import.meta.env.DEV) {
-    return 'http://localhost:8000';
+    return 'http://212.1.213.215:9999';
   }
-  
+
   // Production: use nginx proxy
   return '/api';
 };

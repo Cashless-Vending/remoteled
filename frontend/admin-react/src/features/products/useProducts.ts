@@ -1,5 +1,5 @@
 /**
- * Custom hook for product/service management
+ * Custom hook for service management
  */
 import { useState, useCallback } from 'react';
 import { servicesApi } from '../../core/api/client';
@@ -25,15 +25,15 @@ export const useProducts = () => {
   }, []);
 
   const createProduct = useCallback(async (data: ServiceCreateRequest): Promise<Service> => {
-    const product = await servicesApi.create(data);
+    const service = await servicesApi.create(data);
     await fetchProducts();
-    return product;
+    return service;
   }, [fetchProducts]);
 
   const updateProduct = useCallback(async (id: string, data: ServiceUpdateRequest): Promise<Service> => {
-    const product = await servicesApi.update(id, data);
+    const service = await servicesApi.update(id, data);
     await fetchProducts();
-    return product;
+    return service;
   }, [fetchProducts]);
 
   const deleteProduct = useCallback(async (id: string): Promise<void> => {

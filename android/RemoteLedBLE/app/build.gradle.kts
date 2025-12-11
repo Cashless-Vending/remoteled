@@ -4,21 +4,19 @@ plugins {
 
 android {
     namespace = "com.example.remoteled"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.remoteled"
         minSdk = 26  // Lowered for broader compatibility
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 2
         versionName = "2.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        
-        // API Base URL
-        buildConfigField("String", "API_BASE_URL", "\"http://10.0.2.2:9999\"")
-        // Demo flag: when true, skip network and drive mock flow
-        buildConfigField("boolean", "DEMO_MODE", "false")
+
+        // API Base URL (points to local Mac backend)
+        buildConfigField("String", "API_BASE_URL", "\"http://192.168.1.158:9999\"")
     }
 
     buildTypes {
@@ -52,10 +50,15 @@ dependencies {
     implementation(libs.cardview)
     implementation(libs.recyclerview)
     
-    // QR Code Scanner
-    implementation(libs.zxing.android.embedded)
-    implementation(libs.core)
-    
+    // QR Code Scanner - ML Kit Barcode Scanning (Bundled)
+    implementation(libs.barcode.scanning)
+
+    // CameraX for camera preview
+    implementation(libs.camerax.core)
+    implementation(libs.camerax.camera2)
+    implementation(libs.camerax.lifecycle)
+    implementation(libs.camerax.view)
+
     // Networking - Retrofit + OkHttp
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)
@@ -65,7 +68,8 @@ dependencies {
     
     // Image Loading - Glide
     implementation(libs.glide)
-    
+    implementation(libs.camera.view)
+
     // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)

@@ -66,7 +66,7 @@ public class ProcessingActivity extends AppCompatActivity {
         serviceType = intent.getStringExtra("SERVICE_TYPE");
         authorizedMinutes = intent.getIntExtra("AUTHORIZED_MINUTES", 0);
         amountCents = intent.getIntExtra("AMOUNT_CENTS", 0);
-        
+
         Log.d(TAG, "Processing activation for order: " + orderId);
         Log.d(TAG, "Service type: " + serviceType + ", Duration: " + authorizedMinutes + " min");
     }
@@ -162,27 +162,9 @@ public class ProcessingActivity extends AppCompatActivity {
     }
     
     private void activateLED() {
-        int ledIndex = 1;  // Middle LED
-        int ledDrawable;
-        String statusText;
-        
-        switch (serviceType) {
-            case "TRIGGER":
-                ledDrawable = R.drawable.led_circle_blue;
-                statusText = "🔵 Blue Blink - TRIGGER";
-                break;
-            case "FIXED":
-                ledDrawable = R.drawable.led_circle_green;
-                statusText = "🟢 Green Solid - FIXED";
-                break;
-            case "VARIABLE":
-                ledDrawable = R.drawable.led_circle_amber;
-                statusText = "🟠 Amber Solid - VARIABLE";
-                break;
-            default:
-                ledDrawable = R.drawable.led_circle_green;
-                statusText = "Device activated";
-        }
+        // All service types use GREEN LED when payment succeeds
+        int ledDrawable = R.drawable.led_circle_green;
+        String statusText = "🟢 Payment Successful - Service Starting";
         
         led2.setBackgroundResource(ledDrawable);
         ledStatusText.setText(statusText);
@@ -216,7 +198,7 @@ public class ProcessingActivity extends AppCompatActivity {
     
     private void navigateToRunning() {
         Intent intent = new Intent(this, RunningActivity.class);
-        
+
         // Pass data forward
         intent.putExtra("DEVICE_ID", deviceId);
         intent.putExtra("DEVICE_LABEL", deviceLabel);
@@ -224,14 +206,14 @@ public class ProcessingActivity extends AppCompatActivity {
         intent.putExtra("SERVICE_TYPE", serviceType);
         intent.putExtra("AUTHORIZED_MINUTES", authorizedMinutes);
         intent.putExtra("AMOUNT_CENTS", amountCents);
-        
+
         // Pass authorization if needed for BLE
         if (authorization != null) {
             intent.putExtra("AUTHORIZATION_ID", authorization.getId());
             intent.putExtra("AUTHORIZATION_PAYLOAD", new Gson().toJson(authorization.getPayload()));
             intent.putExtra("AUTHORIZATION_SIGNATURE", authorization.getSignatureHex());
         }
-        
+
         startActivity(intent);
         finish();
     }

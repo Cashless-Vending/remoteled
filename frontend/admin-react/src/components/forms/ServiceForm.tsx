@@ -1,25 +1,23 @@
 import { useState, FormEvent, useEffect, useId } from 'react'
 import { Modal } from '../common/Modal'
-import { Device, Service, ServiceCreateRequest, ServiceUpdateRequest } from '../../types'
+import { Service, ServiceCreateRequest, ServiceUpdateRequest } from '../../types'
+import { useServiceTypes } from '../../hooks/useServiceTypes'
 
 interface ServiceFormProps {
   isOpen: boolean
   onClose: () => void
   onSubmit: (service: ServiceCreateRequest | ServiceUpdateRequest) => Promise<void>
-  devices: Device[]
   editingService?: Service | null
 }
 
-export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService }: ServiceFormProps) => {
+export const ServiceForm = ({ isOpen, onClose, onSubmit, editingService }: ServiceFormProps) => {
   const formId = useId()
-  const deviceId = `${formId}-device`
   const typeId = `${formId}-type`
   const priceId = `${formId}-price`
   const fixedId = `${formId}-fixed`
   const variableId = `${formId}-variable`
 
   const [formData, setFormData] = useState({
-    device_id: '',
     type: 'TRIGGER' as 'TRIGGER' | 'FIXED' | 'VARIABLE',
     price_cents: 100,
     fixed_minutes: 30,
@@ -29,23 +27,27 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
   const [loading, setLoading] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
+  const { serviceTypes = [] } = useServiceTypes() || {}
+
   useEffect(() => {
     if (editingService) {
       setFormData({
-        device_id: editingService.device_id,
         type: editingService.type,
         price_cents: editingService.price_cents,
         fixed_minutes: editingService.fixed_minutes || 30,
         minutes_per_25c: editingService.minutes_per_25c || 15,
         active: editingService.active
       })
-    } else if (devices.length > 0) {
-      setFormData(prev => ({
-        ...prev,
-        device_id: devices[0].id
-      }))
+    } else {
+      setFormData({
+        type: 'TRIGGER',
+        price_cents: 100,
+        fixed_minutes: 30,
+        minutes_per_25c: 15,
+        active: true
+      })
     }
-  }, [editingService, devices, isOpen])
+  }, [editingService, isOpen])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -53,7 +55,6 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
     setFormError(null)
     try {
       const payload: any = {
-        device_id: formData.device_id,
         type: formData.type,
         price_cents: formData.price_cents,
         active: formData.active
@@ -68,7 +69,7 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
       await onSubmit(payload)
       onClose()
     } catch (error: any) {
-      setFormError(error?.message || `Failed to ${editingService ? 'update' : 'create'} product.`)
+      setFormError(error?.message || `Failed to ${editingService ? 'update' : 'create'} service.`)
     } finally {
       setLoading(false)
     }
@@ -77,7 +78,6 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
   const handleClose = () => {
     onClose()
     setFormData({
-      device_id: devices[0]?.id || '',
       type: 'TRIGGER',
       price_cents: 100,
       fixed_minutes: 30,
@@ -91,7 +91,7 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
     <Modal 
       isOpen={isOpen} 
       onClose={handleClose} 
-      title={editingService ? 'Edit Product' : 'Add New Product'}
+      title={editingService ? 'Edit Service' : 'Add New Service'}
     >
       <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
         {formError ? (
@@ -103,21 +103,10 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
           </div>
         ) : null}
 
-        <div style={{ marginBottom: '1rem' }}>
-          <label htmlFor={deviceId} style={{ display: 'block', marginBottom: '0.5rem', fontWeight: 600 }}>
-            Device *
-          </label>
-          <select
-            id={deviceId}
-            required
-            value={formData.device_id}
-            onChange={(e) => setFormData({ ...formData, device_id: e.target.value })}
-            style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #e2e8f0' }}
-          >
-            {devices.map(device => (
-              <option key={device.id} value={device.id}>{device.label}</option>
-            ))}
-          </select>
+        <div style={{ marginBottom: '1rem', padding: '1rem', backgroundColor: '#f0f9ff', borderRadius: '4px', border: '1px solid #bae6fd' }}>
+          <p style={{ margin: 0, fontSize: '0.875rem', color: '#0c4a6e' }}>
+            💡 Services are now global. After creating a service, you can assign it to devices from the Services tab.
+          </p>
         </div>
 
         <div style={{ marginBottom: '1rem' }}>
@@ -131,9 +120,20 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
             onChange={(e) => setFormData({ ...formData, type: e.target.value as any })}
             style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid #e2e8f0' }}
           >
-            <option value="TRIGGER">TRIGGER (2 seconds)</option>
-            <option value="FIXED">FIXED (fixed duration)</option>
-            <option value="VARIABLE">VARIABLE (pay per minute)</option>
+            {serviceTypes.length === 0 ? (
+              <>
+                <option value="TRIGGER">TRIGGER (2 seconds)</option>
+                <option value="FIXED">FIXED (fixed duration)</option>
+                <option value="VARIABLE">VARIABLE (pay per minute)</option>
+              </>
+            ) : (
+              serviceTypes.map(st => (
+                <option key={st.id} value={st.code}>
+                  {st.name}
+                  {st.description && ` - ${st.description}`}
+                </option>
+              ))
+            )}
           </select>
         </div>
 
@@ -191,7 +191,7 @@ export const ServiceForm = ({ isOpen, onClose, onSubmit, devices, editingService
             Cancel
           </button>
           <button type="submit" className="btn btn-primary" disabled={loading}>
-            {loading ? 'Saving...' : (editingService ? 'Update Product' : 'Create Product')}
+            {loading ? 'Saving...' : (editingService ? 'Update Service' : 'Create Service')}
           </button>
         </div>
       </form>

@@ -4,16 +4,32 @@ version = "1.0.0"
 description = "Control a physical LED over BLE using Raspberry Pi and Android"
 requires-python = ">=3.11"
 dependencies = [
+    # Core shared dependencies only
     "ecdsa>=0.19.1",
-    "fastapi>=0.118.3",
-    "psycopg2-binary>=2.9.11",
-    "pydantic-settings>=2.11.0",
-    "uvicorn[standard]>=0.30.0",
-    "bleak>=0.22.0",
-    "stripe>=13.0.1",
+    "python-dotenv>=1.0.0",
+    "cryptography>=41.0.7",
 ]
 
 [project.optional-dependencies]
+# Backend server (VPS/macOS) - FastAPI + Stripe + DB
+server = [
+    "fastapi>=0.118.3",
+    "uvicorn[standard]>=0.30.0",
+    "psycopg2-binary>=2.9.11",
+    "pydantic-settings>=2.11.0",
+    "bleak>=0.22.0",
+    "stripe>=13.0.1",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.6",
+    "asyncpg>=0.29.0",
+    "sqlalchemy>=2.0.23",
+    "python-dateutil>=2.8.2",
+    "email-validator>=2.1.0",
+    "firebase-admin>=7.1.0",
+]
+
+# Raspberry Pi - BLE + GPIO
 pi = [
     "RPi.GPIO>=0.7.1",
     "bluezero>=0.9.1",

@@ -5,8 +5,17 @@ export const formatCurrency = (cents: number | null | undefined): string => {
   return `$${(cents / 100).toFixed(2)}`
 }
 
-export const formatDateTime = (dateStr: string): string => {
-  return new Date(dateStr).toLocaleString()
+export const formatDateTime = (dateStr?: string | null): string => {
+  if (!dateStr) {
+    return '--'
+  }
+
+  const date = new Date(dateStr)
+  if (isNaN(date.getTime())) {
+    return '--'
+  }
+
+  return date.toLocaleString()
 }
 
 export const exportToCSV = (data: any[], filename: string) => {

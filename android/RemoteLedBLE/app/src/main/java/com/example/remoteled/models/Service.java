@@ -78,16 +78,9 @@ public class Service {
     }
     
     public String getLedIndicator() {
-        switch (type) {
-            case "TRIGGER":
-                return "💡 LED: 🔵 Blue Blink";
-            case "FIXED":
-                return "💡 LED: 🟢 Green Solid";
-            case "VARIABLE":
-                return "💡 LED: 🟠 Amber Solid";
-            default:
-                return "";
-        }
+        // All service types use GREEN LED on payment success
+        // RED = idle, YELLOW = processing, GREEN = success/running
+        return "💡 LED: 🟢 Green on Success";
     }
 }
 
