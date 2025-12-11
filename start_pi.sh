@@ -16,13 +16,14 @@ NC='\033[0m'
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEVICE_ID_FILE="/usr/local/remoteled/device_id"
 DEFAULT_DEVICE_ID="d1111111-1111-1111-1111-111111111111"
-MACOS_SERVER_IP="192.168.1.99"
+# VPS Public IP (was local macOS at 192.168.1.99)
+VPS_SERVER_IP="212.1.213.215"
 BACKEND_PORT=9999
 PI_IP=$(hostname -I | awk '{print $1}')
 QR_DATA_FILE="/var/www/html/qr_data.json"
 
 echo -e "${YELLOW}Pi IP: ${PI_IP}${NC}"
-echo -e "${YELLOW}macOS Server: ${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
+echo -e "${YELLOW}VPS Server: ${VPS_SERVER_IP}:${BACKEND_PORT}${NC}"
 echo ""
 
 # =============================================================================
@@ -151,7 +152,7 @@ echo ""
 # STEP 5: Set API Base URL (for QR code generation only - Pi has no network)
 # =============================================================================
 echo -e "${YELLOW}[5/7] Configuring API Base URL (for QR code only)...${NC}"
-echo -e "${GREEN}✓ QR codes will point to: http://${MACOS_SERVER_IP}:${BACKEND_PORT}${NC}"
+echo -e "${GREEN}✓ QR codes will point to: http://${VPS_SERVER_IP}:${BACKEND_PORT}${NC}"
 echo -e "${YELLOW}  Note: Pi operates BLE-only. Android app handles all network communication.${NC}"
 echo ""
 
@@ -161,7 +162,7 @@ echo ""
 echo -e "${YELLOW}[6/7] Starting BLE Peripheral...${NC}"
 
 # Set up environment
-export API_BASE_URL="http://${MACOS_SERVER_IP}:${BACKEND_PORT}"
+export API_BASE_URL="http://${VPS_SERVER_IP}:${BACKEND_PORT}"
 
 # Double-check QR file is still clean before starting
 echo "  → Verifying QR data is clean..."
