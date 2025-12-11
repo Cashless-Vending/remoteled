@@ -94,7 +94,7 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO remoteled;
 \echo 'DATABASE_URL=postgresql://remoteled:remoteled_dev_password@localhost:5432/remoteled'
 \echo ''
 \echo 'Test connection with:'
-\echo '  psql -U remoteled -d remoteled -c "SELECT COUNT(*) FROM devices;"'
+\echo '  PGPASSWORD=remoteled_dev_password psql -h localhost -U remoteled -d remoteled -c "SELECT COUNT(*) FROM devices;"'
 \echo ''
 
 -- Quick verification query
